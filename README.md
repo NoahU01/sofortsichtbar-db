@@ -32,11 +32,17 @@ Website-Events ohne Kontakt löscht ein täglicher pg_cron-Job nach 24 Monaten
 |---|---|---|
 | Website | `sofortsichtbar.de/api/track` (Vercel, Repo sofortsichtbar) → `public.ingest_events` | Events mit visitor_id (nur mit Einwilligung) |
 | Cal.com | Webhook → Edge Function `cal-webhook` (HMAC-Prüfung) → `public.ingest_cal_webhook` | Kontakt + E-Mail-Identität + meeting_booked/rescheduled/canceled/no_show |
+| Calls (ChatGPT-Transkripte) | Seite „sofort sichtbar · Calls“ in Daniels empiria-dashboard → Edge Function `dashboard` → `public.dashboard_*` | `core.calls` (Volltextsuche deutsch) + call_recorded in der Timeline |
 
 Verknüpfung Website ↔ Termin: Der Browser meldet `meeting_booked` mit
 `properties.booking_uid`. Gleiche uid im Webhook ⇒ die visitor_id wird dem
 Kontakt zugeordnet, alle früheren Besuche hängen rückwirkend an ihm. Die
 Reihenfolge, in der Webhook und Browser-Event ankommen, ist egal.
+
+**Dashboard-Brücke:** Die Function `dashboard` prüft das Login-Token beim
+Supabase-Projekt des empiria-dashboards (`/auth/v1/user`) und dann, ob die
+E-Mail in `core.dashboard_zugang` steht. Zugang geben:
+`insert into core.dashboard_zugang (email, name) values ('…', '…');`
 
 **Cal.com einrichten:** Settings → Developer → Webhooks → New.
 Subscriber-URL `https://<ref>.supabase.co/functions/v1/cal-webhook`, Trigger
