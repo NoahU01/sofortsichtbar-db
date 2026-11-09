@@ -424,3 +424,7 @@ enabled = true
 [functions.cal-webhook]
 # Cal.com schickt kein Supabase-JWT – geschützt wird über die HMAC-Signatur.
 verify_jwt = false
+
+[functions.dashboard]
+# Das Token stammt aus Daniels Supabase-Projekt, nicht aus diesem – Prüfung in der Function.
+verify_jwt = false
