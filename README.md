@@ -51,6 +51,15 @@ Booking Created / Rescheduled / Cancelled / No-Show Updated, Secret = Wert von
 `supabase secrets set --env-file .env`). Function deployen:
 `supabase functions deploy cal-webhook --use-api --no-verify-jwt`.
 
+## Cockpit
+
+Eigene Oberfläche: https://sofortsichtbar-cockpit.vercel.app (Ordner `cockpit/`,
+Vercel-Projekt `sofortsichtbar-cockpit`, baut bei jedem Push auf `main`).
+Bereiche: Website (eigenes Tracking), Kontakte (Timeline, Bearbeiten), Calls.
+Login per Login-Link, nur angelegte Konten; Zugriff zusätzlich nur mit Eintrag
+in `core.dashboard_zugang`. Neues Konto: Nutzer in Supabase Auth anlegen
+(Dashboard → Authentication → Add user) und E-Mail in `dashboard_zugang` eintragen.
+
 ## Projekte
 
 | Umgebung | Projekt-Ref |
