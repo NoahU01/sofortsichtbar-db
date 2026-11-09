@@ -16,11 +16,12 @@
 
   function fehler(e) { wurzel.innerHTML = '<div class="karte leer">Fehler: ' + esc(e.message) + "</div>"; }
 
-  function start() {
+  function start(callId) {
     aktiv = true; Z.form = null;
     wurzel.innerHTML = '<div class="laedt">Lädt …</div>';
-    liste().catch(fehler);
+    liste().then(function () { if (callId) oeffnen(callId); }).catch(fehler);
   }
+  function stop() { aktiv = false; }
   function liste() {
     return api("calls", { suche: Z.suche }).then(function (r) {
       Z.calls = r;
@@ -221,5 +222,5 @@
     }
   });
 
-  C.module.calls = { start: start };
+  C.module.calls = { start: start, stop: stop };
 })();

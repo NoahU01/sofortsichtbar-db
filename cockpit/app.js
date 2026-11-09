@@ -68,7 +68,7 @@
     api("ich").then(function (r) {
       loginEl.hidden = true; appEl.hidden = false;
       $("[data-konto]").textContent = r.email;
-      oeffne("calls");
+      ausHash();
     }).catch(function (e) {
       if (e.status === 403) return zeigeLogin("Angemeldet als " + (e.email || "?") + " – diese Adresse ist nicht freigegeben.");
       if (e.status === 401) return zeigeLogin();
@@ -76,11 +76,21 @@
     });
   }
 
-  /* ---------- Navigation ---------- */
-  function oeffne(name) {
+  /* ---------- Navigation ----------
+     Adresse merkt sich den Ort: #calls, #website, #kontakte, #kontakte/<id>, #calls/<id> */
+  function oeffne(name, arg, ohneHash) {
+    if (!window.cockpit.module[name]) { name = "website"; arg = null; }
     document.querySelectorAll("[data-nav]").forEach(function (b) { b.setAttribute("aria-current", String(b.getAttribute("data-nav") === name)); });
-    var m = window.cockpit.module[name];
-    if (m) m.start();
+    if (!ohneHash) history.replaceState(null, "", "#" + name + (arg ? "/" + arg : ""));
+    var M = window.cockpit.module;
+    Object.keys(M).forEach(function (k) { if (k !== name && M[k].stop) M[k].stop(); });
+    window.scrollTo(0, 0);
+    window.cockpit.module[name].start(arg || null);
+  }
+  window.cockpit.oeffne = oeffne;
+  function ausHash() {
+    var m = location.hash.replace(/^#/, "").split("/");
+    oeffne(m[0] || "website", m[1] || null, !!m[0]);
   }
   document.querySelectorAll("[data-nav]").forEach(function (b) {
     b.addEventListener("click", function () { oeffne(b.getAttribute("data-nav")); });

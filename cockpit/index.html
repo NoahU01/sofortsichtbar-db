@@ -32,23 +32,23 @@
   <aside>
     <div class="brand"><img class="logo" src="/logo-white.svg" alt="sofort sichtbar"><b>Cockpit</b></div>
     <nav aria-label="Bereiche">
-      <p class="navgruppentitel">Vertrieb</p>
-      <button type="button" data-nav="calls" aria-current="true">
-        <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12v9H8l-4 3V4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-        <span class="navtext">Calls</span><span class="navzahl" data-zahl="calls"></span>
-      </button>
-      <button type="button" disabled>
-        <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 17c1-3.5 3.5-5 6-5s5 1.5 6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <span class="navtext">Kontakte</span><span class="navbald">bald</span>
-      </button>
       <p class="navgruppentitel">Marketing</p>
-      <button type="button" disabled>
+      <button type="button" data-nav="website">
         <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16V9m5 7V5m5 11v-5m5 5V3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        <span class="navtext">Website</span><span class="navbald">bald</span>
+        <span class="navtext">Website</span>
       </button>
       <button type="button" disabled>
         <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10h3l2-5 3 10 2-5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span class="navtext">Signale</span><span class="navbald">bald</span>
+      </button>
+      <p class="navgruppentitel">Vertrieb</p>
+      <button type="button" data-nav="kontakte">
+        <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 17c1-3.5 3.5-5 6-5s5 1.5 6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span class="navtext">Kontakte</span><span class="navzahl" data-zahl="kontakte"></span>
+      </button>
+      <button type="button" data-nav="calls">
+        <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12v9H8l-4 3V4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span class="navtext">Calls</span><span class="navzahl" data-zahl="calls"></span>
       </button>
     </nav>
     <div class="side-meta">
@@ -62,5 +62,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/app.js"></script>
 <script src="/calls.js"></script>
+<script src="/website.js"></script>
+<script src="/kontakte.js"></script>
 </body>
 </html>

@@ -92,6 +92,38 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
         p_von: email,
       }];
     }
+    case "website": {
+      const tage = Math.min(Math.max(Number(b.tage) || 30, 1), 400);
+      const bis = Date.now();
+      return ["dashboard_website", {
+        p_von: datumOderNull(b.von) ?? new Date(bis - tage * 864e5).toISOString(),
+        p_bis: datumOderNull(b.bis) ?? new Date(bis).toISOString(),
+        p_intern: b.intern === true,
+      }];
+    }
+    case "kontakte_liste":
+      return ["dashboard_kontakte_liste", { p_suche: textOderLeer(b.suche, 100) }];
+    case "kontakt": {
+      const id = uuidOderNull(b.contact_id);
+      if (!id) throw fehler("contact_id fehlt");
+      return ["dashboard_kontakt", { p_contact_id: id }];
+    }
+    case "kontakt_speichern": {
+      const k = (b.kontakt && typeof b.kontakt === "object" ? b.kontakt : {}) as Record<string, unknown>;
+      const id = uuidOderNull(k.contact_id);
+      if (!id) throw fehler("contact_id fehlt");
+      const p: Record<string, unknown> = { contact_id: id };
+      for (const [f, max] of [["vorname", 100], ["nachname", 100], ["telefon", 50], ["lifecycle_stage", 20], ["zielgruppe", 100],
+                              ["paketinteresse", 20], ["lost_grund", 300], ["owner", 50], ["notizen", 20_000]] as const) {
+        p[f] = textOderLeer(k[f], max);
+      }
+      return ["dashboard_kontakt_speichern", { p }];
+    }
+    case "kontakt_loeschen": {
+      const id = uuidOderNull(b.contact_id);
+      if (!id) throw fehler("contact_id fehlt");
+      return ["dashboard_kontakt_loeschen", { p_contact_id: id }];
+    }
     default:
       return null;
   }
