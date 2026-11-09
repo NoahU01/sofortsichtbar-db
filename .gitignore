@@ -1,0 +1,6 @@
+node_modules/
+.env
+.env.*
+.DS_Store
+# Internes Briefing – Repo ist öffentlich, Datei bleibt nur lokal
+docs/briefing.md

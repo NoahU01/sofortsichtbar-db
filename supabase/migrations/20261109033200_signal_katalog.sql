@@ -1,0 +1,126 @@
+-- =====================================================================
+-- Signal-Katalog (Seed aus daten/signale.csv, erzeugt mit
+-- scripts/signale-zu-sql.mjs)
+--
+-- Ein Katalog für alle Signale, auch Kontext- und Kanal-KPI-Zeilen mit
+-- Gewicht 0. Die Scoring-Views (kommen später) filtern nach typ:
+--   Intent, Engagement, Negativ  → Intent-Score
+--   Health                       → Health-Score (Kunden)
+--   Fit                          → vorerst NICHT genutzt (wird gemeinsam ausgearbeitet)
+-- Halbwertszeit 999/9999 = zerfällt praktisch nicht.
+-- Gewichte sind Startwerte; nach 3–6 Monaten gegen Abschlüsse kalibrieren.
+-- =====================================================================
+
+create table scoring.signals (
+  signal_id          text primary key,
+  kanal              text not null,
+  feld               text not null,        -- API-Feld / Event laut Katalog
+  bedeutung          text not null,
+  ebene              text not null,
+  typ                text not null check (typ in ('Fit','Intent','Engagement','Negativ','Kontext','Kanal-KPI','Health')),
+  gewicht            numeric not null check (gewicht between -10 and 10),
+  halbwertszeit_tage integer not null check (halbwertszeit_tage > 0),
+  kern_kpi           boolean not null default false,
+  gilt_fuer          text,
+  hinweis_agent      text,
+  verfuegbar_ab      text not null,
+  -- Harte Sperre statt Abzug (Abmeldung, Spam-Beschwerde, explizite Absage).
+  harte_sperre       boolean not null default false,
+  updated_at         timestamptz not null default now()
+);
+
+create trigger signals_updated_at before update on scoring.signals
+  for each row execute function core.set_updated_at();
+
+insert into scoring.signals
+  (signal_id, kanal, feld, bedeutung, ebene, typ, gewicht, halbwertszeit_tage,
+   kern_kpi, gilt_fuer, hinweis_agent, verfuegbar_ab)
+values
+  ('CRM-01', 'CRM', 'lifecycle_stage', 'Lead / MQL / SQL / Kunde / verloren', 'Person', 'Kontext', 0, 999, true, 'Alle', 'Steuert, welche Regeln überhaupt greifen.', '1 Jetzt'),
+  ('CRM-02', 'CRM', 'zielgruppe / sparte', 'Makler, Ausschließlichkeit, Mehrfachagent, Finanzberater …', 'Person', 'Fit', 6, 999, true, 'Interessent', 'Matching auf passende Vertriebsstrecke/Kampagne.', '1 Jetzt'),
+  ('CRM-03', 'CRM', 'bürogröße / mitarbeiter / bestandsgröße', 'Größe des Vermittlerbüros', 'Firma', 'Fit', 5, 999, true, 'Interessent', 'Bestimmt Paketempfehlung (Fokus / Team / Komplett).', '1 Jetzt'),
+  ('CRM-04', 'CRM', 'paketinteresse', 'Fokus / Team / Komplett', 'Person', 'Intent', 6, 60, true, 'Interessent', null, '1 Jetzt'),
+  ('CRM-05', 'CRM', 'deal_stage, deal_wert, wahrscheinlichkeit', 'Pipeline-Status', 'Person', 'Kontext', 0, 999, true, 'Interessent', 'Zielvariable für spätere Gewichts-Kalibrierung.', '1 Jetzt'),
+  ('CRM-06', 'CRM', 'letzter_kontakt, kontakt_anzahl_30t', 'Wie frisch ist die Beziehung', 'Person', 'Kontext', 0, 999, true, 'Alle', 'Lange Funkstille + neues Signal = guter Trigger.', '1 Jetzt'),
+  ('CRM-07', 'CRM', 'lost_grund', 'Preis, Timing, Wettbewerber, kein Bedarf …', 'Person', 'Negativ', -4, 180, false, 'Interessent', 'Timing-Verluste nach 3–6 Monaten reaktivieren.', '1 Jetzt'),
+  ('CRM-08', 'CRM', 'notizen (Freitext)', 'Daniels Kontextinfos', 'Person', 'Kontext', 0, 999, false, 'Alle', 'LLM extrahiert Pain Points, Einwände, Termine.', '1 Jetzt'),
+  ('CRM-09', 'CRM', 'vertragsende, aktive_vertriebsstrecken', 'Laufzeit und gebuchte Strecken', 'Person', 'Kontext', 0, 999, true, 'Kunde', 'Upsell: weitere Strecke; Verlängerung rechtzeitig anstoßen.', '1 Jetzt'),
+  ('WEB-01', 'Website', 'page_view – Preis-/Paketseite', 'Preisrecherche', 'Person', 'Intent', 8, 14, true, 'Interessent', 'Mehrfachbesuch innerhalb 7 Tagen stärker werten.', '1 Jetzt'),
+  ('WEB-02', 'Website', 'page_view – Produkt-/Leistungsseite', 'Lösungsinteresse', 'Person', 'Intent', 4, 14, false, 'Interessent', null, '1 Jetzt'),
+  ('WEB-03', 'Website', 'page_view – Referenzen / Cases', 'Absicherung vor Kauf', 'Person', 'Intent', 5, 14, false, 'Interessent', null, '1 Jetzt'),
+  ('WEB-04', 'Website', 'sessions_14t ≥ 3', 'Wiederkehrender Besucher', 'Person', 'Intent', 6, 14, true, 'Interessent', null, '1 Jetzt'),
+  ('WEB-05', 'Website', 'form_start ohne form_submit', 'Formular abgebrochen', 'Person', 'Intent', 4, 7, false, 'Interessent', 'Trigger für Erinnerung, wenn E-Mail schon bekannt.', '1 Jetzt'),
+  ('WEB-06', 'Website', 'generate_lead (Kontakt-/Demo-Formular)', 'Aktive Anfrage', 'Person', 'Intent', 10, 30, true, 'Interessent', 'Sofort an Vertrieb.', '1 Jetzt'),
+  ('WEB-07', 'Website', 'file_download / Lead-Magnet', 'Content konsumiert', 'Person', 'Engagement', 4, 30, false, 'Interessent', 'Thema des Downloads speichern.', '1 Jetzt'),
+  ('WEB-08', 'Website', 'engagement_time, scroll 90 %', 'Lesetiefe', 'Person', 'Engagement', 1, 14, false, 'Alle', 'Nur in Kombination aussagekräftig.', '1 Jetzt'),
+  ('WEB-09', 'Website', 'referrer, utm_source / medium / campaign', 'Woher kam der Besuch', 'Person', 'Kontext', 0, 999, false, 'Alle', 'Kanal-Präferenz der Person (LinkedIn, Google, Bing, Newsletter …).', '1 Jetzt'),
+  ('WEB-10', 'Website', 'gclid / gbraid / wbraid / fbclid / li_fat_id / ttclid', 'Klick aus einer Anzeige', 'Person', 'Kontext', 0, 999, false, 'Alle', 'Schon jetzt mitschreiben – Schlüssel für Paid-Rückkanäle später.', '1 Jetzt'),
+  ('WEB-11', 'Website', 'page_view – Karriere / Jobs', 'Wahrscheinlich Bewerber', 'Person', 'Negativ', -3, 60, false, 'Interessent', 'Aus Vertriebs-Scoring herausfiltern.', '1 Jetzt'),
+  ('FUN-01', 'Funnel', 'funnel_start', 'Funnel begonnen', 'Person', 'Engagement', 3, 14, false, 'Interessent', null, '1 Jetzt'),
+  ('FUN-02', 'Funnel', 'funnel_step_abandon (Schritt-Nr.)', 'Abbruch an Schritt X', 'Person', 'Intent', 4, 7, false, 'Interessent', 'Schritt zeigt den Einwand (z.B. Preisfrage).', '1 Jetzt'),
+  ('FUN-03', 'Funnel', 'funnel_complete', 'Funnel abgeschlossen', 'Person', 'Intent', 8, 30, true, 'Interessent', null, '1 Jetzt'),
+  ('FUN-04', 'Funnel', 'Antworten (Sparte, Ziel, Budget, Zeitrahmen)', 'Selbstauskunft', 'Person', 'Fit', 7, 999, true, 'Interessent', 'Überschreibt Annahmen im CRM, wenn aktueller.', '1 Jetzt'),
+  ('EML-01', 'Newsletter (eigen)', 'open (eigener Pixel)', 'Mail geöffnet', 'Person', 'Engagement', 1, 7, false, 'Alle', 'Durch Apple Mail Privacy Protection unzuverlässig – nie allein als Trigger.', '1 Jetzt'),
+  ('EML-02', 'Newsletter (eigen)', 'click (eigener Redirect, link_id)', 'Klick in Mail', 'Person', 'Engagement', 5, 14, true, 'Alle', 'Redirect verknüpft gleichzeitig visitor_id ↔ contact_id → Folgebesuche zählen zur Person.', '1 Jetzt'),
+  ('EML-03', 'Newsletter (eigen)', 'click – Preis- oder Terminlink', 'Kaufnaher Klick', 'Person', 'Intent', 8, 14, true, 'Interessent', null, '1 Jetzt'),
+  ('EML-04', 'Newsletter (eigen)', 'unsubscribe', 'Abgemeldet', 'Person', 'Negativ', -10, 9999, true, 'Alle', 'Harte Sperre für Marketing-Mails, nicht nur Abzug.', '1 Jetzt'),
+  ('EML-05', 'Newsletter (eigen)', 'complaint (Webhook)', 'Als Spam markiert', 'Person', 'Negativ', -10, 9999, true, 'Alle', 'Harte Sperre.', '1 Jetzt'),
+  ('EML-06', 'Newsletter (eigen)', 'hard_bounce (Webhook)', 'Adresse ungültig', 'Person', 'Negativ', -5, 9999, false, 'Alle', 'Auf Sperrliste; Adresse im CRM prüfen.', '1 Jetzt'),
+  ('GML-01', 'Vertriebspostfach', 'Eingehende Antwort auf Vertriebs- oder Newsletter-Mail', 'Lead antwortet', 'Person', 'Intent', 9, 21, true, 'Interessent', 'Inhalt per LLM klassifizieren (positiv / Einwand / Absage).', '1 Jetzt'),
+  ('GML-02', 'Vertriebspostfach', 'Lead schreibt von sich aus (neuer Thread)', 'Initiative vom Lead', 'Person', 'Intent', 10, 21, true, 'Alle', null, '1 Jetzt'),
+  ('GML-03', 'Vertriebspostfach', 'Antwortzeit, threads_30t', 'Engagement-Tempo', 'Person', 'Engagement', 3, 30, false, 'Alle', null, '1 Jetzt'),
+  ('GML-04', 'Vertriebspostfach', 'Absage / ''kein Interesse'' im Text', 'Explizite Absage', 'Person', 'Negativ', -8, 120, true, 'Interessent', 'LLM-Klassifikation.', '1 Jetzt'),
+  ('CAL-01', 'Terminbuchung', 'invitee.created', 'Termin gebucht', 'Person', 'Intent', 10, 30, true, 'Alle', null, '1 Jetzt'),
+  ('CAL-02', 'Terminbuchung', 'invitee.canceled / no_show', 'Abgesagt oder nicht erschienen', 'Person', 'Negativ', -4, 30, true, 'Interessent', 'Nachfassen statt abschreiben.', '1 Jetzt'),
+  ('CAL-03', 'Terminbuchung', 'questions_and_answers', 'Antworten im Buchungsformular', 'Person', 'Fit', 4, 999, false, 'Interessent', null, '1 Jetzt'),
+  ('FF-01', 'Fireflies', 'transcript, summary, action_items', 'Call-Inhalt', 'Person', 'Kontext', 0, 999, false, 'Alle', 'LLM extrahiert Einwände, Budget, Entscheider, Zeitrahmen.', '1 Jetzt'),
+  ('FF-02', 'Fireflies', 'Nächster Schritt vereinbart (aus Summary)', 'Konkreter Folgeschritt', 'Person', 'Intent', 8, 21, true, 'Interessent', null, '1 Jetzt'),
+  ('FF-03', 'Fireflies', 'Redeanteil Lead, Fragen des Leads', 'Gesprächsqualität', 'Person', 'Engagement', 2, 30, false, 'Interessent', null, '1 Jetzt'),
+  ('PRD-01', 'Produkt', 'dashboard_login_7t', 'Nutzung Steuerungs-Dashboard', 'Person', 'Health', 5, 14, true, 'Kunde', 'Basis Health-Score.', '1 Jetzt'),
+  ('PRD-02', 'Produkt', 'posts_geplant vs. posts_veröffentlicht', 'Umsetzungsquote', 'Person', 'Health', 6, 30, true, 'Kunde', 'Niedrige Quote = Churn-Risiko → ''neu +'' anbieten.', '1 Jetzt'),
+  ('PRD-03', 'Produkt', 'keine Aktivität ≥ 14 Tage', 'Inaktiv', 'Person', 'Negativ', -6, 30, true, 'Kunde', 'Churn-Alarm.', '1 Jetzt'),
+  ('PRD-04', 'Produkt', 'strategietool_genutzt, neue Zielgruppe angelegt', 'Expansion', 'Person', 'Intent', 5, 30, false, 'Kunde', 'Upsell weitere Vertriebsstrecke.', '1 Jetzt'),
+  ('BUF-01', 'Buffer', 'Post.metrics (impressions, reach, engagements, clicks, reactions, comments, shares)', 'Normalisierte Post-Kennzahlen je Kanal', 'Post', 'Kanal-KPI', 0, 999, true, 'Kanal', 'Mit Tags (Thema/Format) auswerten: Was funktioniert bei Vermittlern?', '1 Jetzt'),
+  ('BUF-02', 'Buffer', 'posts: status, dueAt, sentAt, tags, channel', 'Was wurde wann gepostet', 'Post', 'Kontext', 0, 999, false, 'Kanal / Kunde', 'Bei Kunden: geplant vs. gepostet = Umsetzungsquote.', '1 Jetzt'),
+  ('LI-02', 'LinkedIn organisch', 'comments: actor (person-URN), message', 'Kommentar auf Company-Post', 'Person (eingeschränkt)', 'Engagement', 4, 30, false, 'Alle', 'Nur URN – Zuordnung nur manuell bestätigt speichern.', '1 Jetzt'),
+  ('LI-03', 'LinkedIn organisch', 'reactions: actor, reactionType', 'Reaktion auf Company-Post', 'Person (eingeschränkt)', 'Engagement', 2, 21, false, 'Alle', 'Wie LI-02.', '1 Jetzt'),
+  ('LI-04', 'LinkedIn organisch', 'shareStatistics: impressions, uniqueImpressions, clicks, likes, comments, shares, engagement', 'Post-Performance', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', 'Engagement-Rate je Thema → Content-Learnings.', '1 Jetzt'),
+  ('LI-05', 'LinkedIn organisch', 'followerStatistics nach seniority, industry, function, geo', 'Wer folgt der Page', 'Aggregat', 'Kanal-KPI', 0, 999, false, 'Kanal', 'Passt die Follower-Basis zur Zielgruppe?', '1 Jetzt'),
+  ('LI-08', 'LinkedIn DMA', 'messages: eingehende DM (Thread-ID, Absender-URN, Text)', 'Kontakt schreibt per LinkedIn', 'Person', 'Intent', 9, 21, true, 'Alle', 'Text per LLM klassifizieren (Interesse / Frage / Einwand / Absage / Smalltalk).', '1 Jetzt'),
+  ('LI-09', 'LinkedIn DMA', 'messages: Antwort auf eure Nachricht', 'Kontakt antwortet auf Ansprache', 'Person', 'Intent', 8, 21, true, 'Interessent', 'Antwortzeit mitspeichern.', '1 Jetzt'),
+  ('LI-10', 'LinkedIn DMA', 'invitations / connections: Vernetzung angenommen oder eingegangen', 'Neue Verbindung', 'Person', 'Engagement', 3, 30, false, 'Alle', 'Firma + Position aus CONNECTIONS → Fit prüfen.', '1 Jetzt'),
+  ('LI-11', 'LinkedIn über Postfach', 'Benachrichtigungsmail: Kommentar / Erwähnung auf persönlichem Post', 'Öffentliche Reaktion auf Daniels/Noahs Post', 'Person (eingeschränkt)', 'Engagement', 4, 30, false, 'Alle', 'Match über Name → bis zur Bestätigung als ''unbestätigt'' führen.', '1 Jetzt'),
+  ('LI-12', 'LinkedIn über Postfach', 'Benachrichtigungsmail: Reaktion (oft gebündelt)', 'Like/Reaktion auf persönlichem Post', 'Person (eingeschränkt)', 'Engagement', 2, 21, false, 'Alle', 'Nur die namentlich genannte Person zählt; ''und X weitere'' ignorieren.', '1 Jetzt'),
+  ('CLA-01', 'Website-UX', 'Clarity Export je URL: scroll depth, rage clicks, dead clicks, engagement time, quickbacks', 'UX-Probleme je Seite', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Website', 'Agent: wöchentlich Seiten mit Problemen + Vorschlag ausgeben.', '1 Jetzt'),
+  ('YT-01', 'YouTube', 'views, estimatedMinutesWatched, averageViewPercentage, subscribersGained je Video', 'Video-Performance', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', 'Welche Themen/Formate halten Vermittler am längsten?', '1 Jetzt'),
+  ('YT-02', 'YouTube', 'insightTrafficSourceType (Suche, Vorschläge, extern …)', 'Wie Videos gefunden werden', 'Aggregat', 'Kanal-KPI', 0, 999, false, 'Kanal', 'Hoher Suchanteil → Thema auch als Blog/SEO aufgreifen.', '1 Jetzt'),
+  ('YT-03', 'YouTube', 'commentThreads: authorDisplayName, authorChannelUrl, textOriginal', 'Kommentar unter Video', 'Person (eingeschränkt)', 'Engagement', 3, 30, false, 'Alle', 'Fragen im Kommentar = Content-Idee; Match nur bestätigt speichern.', '1 Jetzt'),
+  ('YT-04', 'YouTube', 'Website-Besuch mit utm_source=youtube (eigenes Tracking)', 'Klick aus Video/Beschreibung', 'Person', 'Engagement', 4, 14, false, 'Alle', 'Video-ID in utm_content mitgeben → welches Video bringt Besuche.', '1 Jetzt'),
+  ('TT-01', 'TikTok', 'video insights: views, likes, comments, shares, avg. watch time, completion rate', 'Video-Performance', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', null, '1 Jetzt'),
+  ('TT-02', 'TikTok', 'Herkunft der Aufrufe (For You, Folgen, Suche, Profil), Follower-Zuwachs, Profilaufrufe', 'Reichweitenquellen', 'Aggregat', 'Kanal-KPI', 0, 999, false, 'Kanal', null, '1 Jetzt'),
+  ('TT-03', 'TikTok', 'Kommentar (Username, Text)', 'Kommentar unter Video', 'Person (eingeschränkt)', 'Engagement', 3, 30, false, 'Alle', 'Wie YT-03.', '1 Jetzt'),
+  ('TT-04', 'TikTok Messaging', 'Eingehende Direktnachricht', 'Kontakt schreibt per TikTok', 'Person', 'Intent', 8, 21, true, 'Alle', 'Text per LLM klassifizieren.', '2 Danach'),
+  ('TTA-01', 'TikTok Ads', 'Lead aus Instant Form (Felder, campaign_id, ad_id)', 'Lead über TikTok-Formular', 'Person', 'Intent', 7, 30, true, 'Interessent', 'Mit Fit-Score kombinieren.', '3 Paid'),
+  ('TTA-02', 'TikTok Ads', 'spend, impressions, clicks, conversions, cost per result', 'Kanal-Performance', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', null, '3 Paid'),
+  ('GSC-01', 'Search Console', 'query, page, clicks, impressions, ctr, position', 'Organische Nachfrage Google', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', 'Themen für Content ableiten.', '1 Jetzt'),
+  ('BING-01', 'Bing Webmaster', 'GetQueryStats / GetPageQueryStats: query, page, clicks, impressions, avg. position', 'Organische Nachfrage Bing', 'Aggregat', 'Kanal-KPI', 0, 999, false, 'Kanal', 'Mit GSC-01 in einer Tabelle zusammenführen.', '1 Jetzt'),
+  ('LI-01', 'LinkedIn Lead Sync', 'leadFormResponses: answers, leadType, submittedAt', 'Lead über LinkedIn-Formular', 'Person', 'Intent', 9, 30, true, 'Interessent', 'Inkl. Firma/Position aus Formular → starkes Fit-Signal.', '2 Danach'),
+  ('META-06', 'FB / IG organisch', 'Kommentar (Name / Username, Text)', 'Öffentliche Reaktion', 'Person (eingeschränkt)', 'Engagement', 3, 30, false, 'Alle', 'Nur per Name/Username matchbar → als ''unbestätigt'' kennzeichnen.', '2 Danach'),
+  ('GAD-01', 'Google Ads', 'click_view: campaign, ad_group, keyword, gclid', 'Über welches Keyword kam der Lead', 'Person', 'Kontext', 0, 999, false, 'Interessent', 'Join über gclid.', '3 Paid'),
+  ('GAD-02', 'Google Ads', 'search_term (über gclid zugeordnet)', 'Exakte Suchanfrage', 'Person', 'Intent', 3, 30, false, 'Interessent', 'Kaufnahe Suchbegriffe stärker werten.', '3 Paid'),
+  ('GAD-03', 'Google Ads', 'impressions, clicks, cost_micros, conversions, cost_per_conversion', 'Kanal-Performance', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', null, '3 Paid'),
+  ('GAD-04', 'Google Ads', 'search_impression_share, budget_lost_impression_share', 'Verpasste Nachfrage', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', null, '3 Paid'),
+  ('META-01', 'Meta Lead Ads', 'field_data, ad_id, adset_id, campaign_id, form_id, created_time', 'Lead über Sofortformular', 'Person', 'Intent', 8, 30, true, 'Interessent', 'Oft weniger qualifiziert als Website-Leads → mit Fit-Score kombinieren.', '3 Paid'),
+  ('META-02', 'Meta Lead Ads', 'custom_disclaimer_responses', 'Einwilligungen im Formular', 'Person', 'Kontext', 0, 999, false, 'Interessent', 'Pflicht für spätere E-Mail-Ansprache.', '3 Paid'),
+  ('META-03', 'Meta Insights', 'spend, impressions, reach, frequency, clicks, ctr, cpm', 'Reichweite & Kosten', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', null, '3 Paid'),
+  ('META-04', 'Meta Insights', 'actions (lead), cost_per_action_type', 'Leads & CPL', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', null, '3 Paid'),
+  ('LI-06', 'LinkedIn Ads', 'adAnalytics Pivot MEMBER_COMPANY: impressions, clicks', 'Welche Firmen sehen/klicken Ads', 'Firma', 'Intent', 3, 21, false, 'Interessent', 'Firma mit Klicks + Kontakt im CRM → Account-Signal.', '3 Paid'),
+  ('LI-07', 'LinkedIn Ads', 'costInLocalCurrency, clicks, oneClickLeads, externalWebsiteConversions', 'Kanal-Performance', 'Aggregat', 'Kanal-KPI', 0, 999, true, 'Kanal', null, '3 Paid'),
+  ('GA4-01', 'GA4 Data API', 'sessions, engagedSessions, keyEvents je Channel Group', 'Abgleich zum eigenen Tracking', 'Aggregat', 'Kanal-KPI', 0, 999, false, 'Kanal', 'Nur Plausibilitätscheck.', 'Optional'),
+  ('RIP-01', 'Firmenerkennung', 'Firma identifiziert + besuchte Seiten', 'Unbekannter Besucher aus bekannter Firma', 'Firma', 'Intent', 3, 14, false, 'Interessent', 'Nur wenn Firma bereits im CRM.', 'Optional');
+
+update scoring.signals set harte_sperre = true
+ where signal_id in ('EML-04', 'EML-05', 'GML-04');
+
+grant all on scoring.signals to service_role;
+alter table scoring.signals enable row level security;
