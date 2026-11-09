@@ -9,7 +9,7 @@ Hintergrund und Zielbild: internes Briefing (liegt nur lokal unter `docs/briefin
 |---|---|
 | `core` | contacts (CRM), companies, identities, event_types, events, consents |
 | `scoring` | signals (Katalog aus `daten/signale.csv`), später Score-Views |
-| `raw` | Roh-Payloads je Quelle (folgt mit der jeweiligen Anbindung) |
+| `raw` | Roh-Payloads je Quelle: cal_webhooks |
 | `analytics` | Aggregate wie search_queries, post_metrics (folgt) |
 | `agent` | recommendations (folgt) |
 
@@ -22,7 +22,28 @@ Kein Schema ist für `anon`/`authenticated` freigegeben. Zugriff nur serverseiti
 anonymen Events dieses Besuchers rückwirkend zugeordnet.
 
 **Löschen:** `select core.delete_contact('<uuid>');` entfernt den Kontakt mit allen
-Identitäten, Events und Einwilligungen.
+Identitäten, Events, Einwilligungen und rohen Cal.com-Webhooks.
+Website-Events ohne Kontakt löscht ein täglicher pg_cron-Job nach 24 Monaten
+(so steht es in der Datenschutzerklärung).
+
+## Quellen
+
+| Quelle | Weg | Ergebnis |
+|---|---|---|
+| Website | `sofortsichtbar.de/api/track` (Vercel, Repo sofortsichtbar) → `public.ingest_events` | Events mit visitor_id (nur mit Einwilligung) |
+| Cal.com | Webhook → Edge Function `cal-webhook` (HMAC-Prüfung) → `public.ingest_cal_webhook` | Kontakt + E-Mail-Identität + meeting_booked/rescheduled/canceled/no_show |
+
+Verknüpfung Website ↔ Termin: Der Browser meldet `meeting_booked` mit
+`properties.booking_uid`. Gleiche uid im Webhook ⇒ die visitor_id wird dem
+Kontakt zugeordnet, alle früheren Besuche hängen rückwirkend an ihm. Die
+Reihenfolge, in der Webhook und Browser-Event ankommen, ist egal.
+
+**Cal.com einrichten:** Settings → Developer → Webhooks → New.
+Subscriber-URL `https://<ref>.supabase.co/functions/v1/cal-webhook`, Trigger
+Booking Created / Rescheduled / Cancelled / No-Show Updated, Secret = Wert von
+`CAL_WEBHOOK_SECRET` (lokal in `.env`, gitignored; in Supabase per
+`supabase secrets set --env-file .env`). Function deployen:
+`supabase functions deploy cal-webhook --use-api --no-verify-jwt`.
 
 ## Projekte
 
@@ -42,6 +63,6 @@ Identitäten, Events und Einwilligungen.
 ## Offen
 
 - Fit-Score: bewusst zurückgestellt, wird gemeinsam ausgearbeitet.
-- First-Party-Tracking (Endpunkt + Script auf sofortsichtbar.de) – nächster Schritt.
+- `ss_vid` in Cookiebot als Statistik einordnen.
 - Deals/Pipeline-Felder und Daniels CRM-Felder festziehen.
-- prod-Projekt, Pro-Plan, AVV, Umzug auf Firmen-Account.
+- prod-Projekt, Pro-Plan, AVV mit Supabase (Datenschutzerklärung nennt ihn schon), Umzug auf Firmen-Account.
