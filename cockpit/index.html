@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Cockpit · sofort sichtbar</title>
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/cockpit.css">
+</head>
+<body>
+
+<!-- Anmeldung -->
+<div class="login" data-login hidden>
+  <form class="login-karte" data-login-form>
+    <img class="login-logo" src="/logo-white.svg" alt="sofort sichtbar">
+    <h1>Cockpit</h1>
+    <p class="leise">sofort sichtbar · interne Datenbank</p>
+    <label class="feld">E-Mail
+      <input type="email" name="email" required autocomplete="email" placeholder="name@firma.de">
+    </label>
+    <button type="submit" class="knopf knopf--primaer">Login-Link schicken</button>
+    <p class="login-meldung" data-login-meldung role="status"></p>
+  </form>
+</div>
+
+<!-- App -->
+<div class="app" data-app hidden>
+  <aside>
+    <div class="brand"><img class="logo" src="/logo-white.svg" alt="sofort sichtbar"><b>Cockpit</b></div>
+    <nav aria-label="Bereiche">
+      <p class="navgruppentitel">Vertrieb</p>
+      <button type="button" data-nav="calls" aria-current="true">
+        <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h12v9H8l-4 3V4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span class="navtext">Calls</span><span class="navzahl" data-zahl="calls"></span>
+      </button>
+      <button type="button" disabled>
+        <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M4 17c1-3.5 3.5-5 6-5s5 1.5 6 5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span class="navtext">Kontakte</span><span class="navbald">bald</span>
+      </button>
+      <p class="navgruppentitel">Marketing</p>
+      <button type="button" disabled>
+        <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16V9m5 7V5m5 11v-5m5 5V3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span class="navtext">Website</span><span class="navbald">bald</span>
+      </button>
+      <button type="button" disabled>
+        <svg class="ikon" viewBox="0 0 20 20" aria-hidden="true"><path d="M2 10h3l2-5 3 10 2-5h6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="navtext">Signale</span><span class="navbald">bald</span>
+      </button>
+    </nav>
+    <div class="side-meta">
+      <span data-konto></span><br>
+      <button type="button" class="abmelden" data-abmelden>Abmelden</button>
+    </div>
+  </aside>
+  <main data-main></main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="/app.js"></script>
+<script src="/calls.js"></script>
+</body>
+</html>

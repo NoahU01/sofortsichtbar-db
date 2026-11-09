@@ -1,8 +1,9 @@
 /**
- * Brücke zwischen Daniels Dashboard (empiria-dashboard) und der
- * sofort-sichtbar-Datenbank.
+ * Zugang zur sofort-sichtbar-Datenbank für zwei Oberflächen:
+ *   - das eigene Cockpit (Login über dieses Supabase-Projekt)
+ *   - Daniels Dashboard (empiria-dashboard, Login über dessen Supabase-Projekt)
  *
- * Das Dashboard schickt das Login-Token seiner eigenen Supabase-Anmeldung mit.
+ * Beide schicken das Login-Token ihrer Anmeldung mit.
  * Hier wird geprüft:
  *   1. Ist das Token beim Dashboard gültig? → E-Mail der Person
  *   2. Steht die E-Mail in core.dashboard_zugang?
@@ -20,7 +21,7 @@ export type Abhaengigkeiten = {
 };
 
 const MAX_BODY = 1_000_000;
-const ORIGIN = /^(https:\/\/empiria-dashboard(-[a-z0-9-]+)?\.vercel\.app|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
+const ORIGIN = /^(https:\/\/(empiria-dashboard|sofortsichtbar-cockpit)(-[a-z0-9-]+)?\.vercel\.app|https:\/\/cockpit\.sofortsichtbar\.de|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?)$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function cors(origin: string | null): Record<string, string> {
