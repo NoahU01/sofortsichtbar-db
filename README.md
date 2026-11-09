@@ -65,4 +65,4 @@ Booking Created / Rescheduled / Cancelled / No-Show Updated, Secret = Wert von
 - Fit-Score: bewusst zurückgestellt, wird gemeinsam ausgearbeitet.
 - `ss_vid` in Cookiebot als Statistik einordnen.
 - Deals/Pipeline-Felder und Daniels CRM-Felder festziehen.
-- prod-Projekt, Pro-Plan, AVV mit Supabase (Datenschutzerklärung nennt ihn schon), Umzug auf Firmen-Account.
+- prod-Projekt, Pro-Plan, Umzug auf Firmen-Account (dabei ToS + DPA im Namen der empiria GmbH akzeptieren; der DPA gilt per ToS, keine separate Unterschrift).
