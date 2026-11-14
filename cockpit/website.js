@@ -53,7 +53,7 @@
         kachel("Sitzungen", zahl(k.sitzungen)) +
         kachel("Seitenaufrufe", zahl(k.seitenaufrufe)) +
         kachel("Consent", k.einwilligung == null ? "–" : k.einwilligung + " %") +
-        kachel("Verweildauer", dauer(k.verweildauer)) +
+        kachel("Verweildauer", dauer(k.verweildauer), k.verweildauer_ausreisser ? "ohne " + k.verweildauer_ausreisser + (k.verweildauer_ausreisser === 1 ? " Ausreißer" : " Ausreißer") : "") +
         kachel("Leads", zahl(k.leads)) +
       "</div>" +
       '<section class="karte panel"><div class="panel-kopf"><h2>Seitenaufrufe pro Tag</h2></div>' + verlauf(d.verlauf) + "</section>" +
