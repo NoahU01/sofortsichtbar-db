@@ -13,6 +13,12 @@
   var KLICKZIEL = { kontakt: "Zur Kontaktseite", mail: "E-Mail", telefon: "Telefon", zielgruppe: "Zielgruppen-Seite", sonstige: "Sonstige" };
 
   function zahl(n) { return n == null ? "–" : Number(n).toLocaleString("de-DE"); }
+  // Ø Sitzungsdauer: "45 s" bzw. "2:05 min"
+  function dauer(sek) {
+    if (sek == null) return "–";
+    sek = Math.round(sek);
+    return sek < 60 ? sek + " s" : Math.floor(sek / 60) + ":" + String(sek % 60).padStart(2, "0") + " min";
+  }
   function prozent(a, b) { return b ? Math.round(100 * a / b) + " %" : "–"; }
   function tagKurz(d) { return new Date(d + "T12:00:00").toLocaleDateString("de-DE", { day: "numeric", month: "numeric" }); }
   function tagLang(d) { return new Date(d + "T12:00:00").toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "long" }); }
@@ -43,12 +49,12 @@
         '<label class="schalter"><input type="checkbox" data-intern' + (Z.intern ? " checked" : "") + "> Eigene Zugriffe und Vorschau einrechnen</label>" +
       "</div>" +
       '<div class="kacheln">' +
-        kachel("Seitenaufrufe", zahl(k.seitenaufrufe), "alle, auch ohne Einwilligung") +
-        kachel("Besucher", zahl(k.besucher), "mit Einwilligung, wiedererkannt") +
-        kachel("Sitzungen", zahl(k.sitzungen), "mit Einwilligung") +
-        kachel("Einwilligung", k.einwilligung == null ? "–" : k.einwilligung + " %", "Anteil der Seitenaufrufe") +
-        kachel("Kalender geöffnet", zahl(k.kalender), "Cal.com-Kalender angezeigt") +
-        kachel("Termine gebucht", zahl(k.buchungen), "über die Website") +
+        kachel("Nutzer", zahl(k.besucher)) +
+        kachel("Sitzungen", zahl(k.sitzungen)) +
+        kachel("Seitenaufrufe", zahl(k.seitenaufrufe)) +
+        kachel("Consent", k.einwilligung == null ? "–" : k.einwilligung + " %") +
+        kachel("Verweildauer", dauer(k.verweildauer)) +
+        kachel("Leads", zahl(k.leads)) +
       "</div>" +
       '<section class="karte panel"><div class="panel-kopf"><h2>Seitenaufrufe pro Tag</h2></div>' + verlauf(d.verlauf) + "</section>" +
       abgleich(k, Z.ga4) +
@@ -76,7 +82,7 @@
   }
 
   function kachel(titel, wert, hinweis) {
-    return '<div class="kachel karte"><span class="flabel">' + esc(titel) + '</span><b class="kachel-wert">' + wert + "</b><small>" + esc(hinweis) + "</small></div>";
+    return '<div class="kachel karte"><span class="flabel">' + esc(titel) + '</span><b class="kachel-wert">' + wert + "</b>" + (hinweis ? "<small>" + esc(hinweis) + "</small>" : "") + "</div>";
   }
   function panel(titel, sub, inhalt, breit) {
     return '<section class="karte panel' + (breit ? " panel--breit" : "") + '"><div class="panel-kopf"><h2>' + esc(titel) + "</h2>" +
