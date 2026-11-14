@@ -39,6 +39,13 @@ Website-Events ohne Kontakt löscht ein täglicher pg_cron-Job nach 24 Monaten
 
 | Microsoft 365 (Mails, Kalender) | Edge Function `postfach-import` (App-Registrierung, Mail/Kalender per Exchange-RBAC auf @sofortsichtbar.de begrenzt, alle 15 min) → `public.ingest_postfach` | `core.mails`, `core.kalender`, mail_received/mail_sent/calendar_meeting |
 
+| LinkedIn-Reaktionen (Firmenseite, Daniel) | Reaktionsliste in LinkedIn kopieren → Cockpit „LinkedIn“ → `public.dashboard_linkedin_erfassen` | `core.linkedin_beitraege/_personen/_reaktionen`; zugeordnete Personen → linkedin_reaction |
+
+LinkedIn: Kein API-Weg für Namen – Buffer liefert nur Summen, die Community
+Management API verbietet CRM-/Lead-Nutzung und erlaubt nur 48 h Speicherung.
+Darum Einfügen von Hand; Zuordnung zu Kontakten nur bestätigt (Name ist kein
+sicherer Schlüssel). `reaktionen_laut_buffer` füllt später der Buffer-Import.
+
 Einrichten Microsoft 365: `scripts/postfach-einrichten.sh`. In Entra nur `User.Read.All`
 (Anwendung) vergeben – Mail.Read/Calendars.Read NICHT in Entra, sondern per
 `New-ManagementRoleAssignment` mit Bereich `sofortsichtbar-postfaecher`, sonst gilt der
@@ -68,7 +75,7 @@ Booking Created / Rescheduled / Cancelled / No-Show Updated, Secret = Wert von
 
 Eigene Oberfläche: https://sofortsichtbar-cockpit.vercel.app (Ordner `cockpit/`,
 Vercel-Projekt `sofortsichtbar-cockpit`, baut bei jedem Push auf `main`).
-Bereiche: Website (eigenes Tracking), Kontakte (Timeline, Bearbeiten), Calls.
+Bereiche: Website (eigenes Tracking), Suche, LinkedIn, Kontakte (Timeline, Bearbeiten), Postfach, Calls.
 Login per Login-Link, nur angelegte Konten; Zugriff zusätzlich nur mit Eintrag
 in `core.dashboard_zugang`. Neues Konto: Nutzer in Supabase Auth anlegen
 (Dashboard → Authentication → Add user) und E-Mail in `dashboard_zugang` eintragen.
