@@ -180,6 +180,14 @@
                   p.ort, p.online ? "online" : "", p.postfach ? "Kalender " + p.postfach : ""].filter(Boolean).join(" · "));
     }
     else if (e.event_name === "call_recorded") { titel = "Call: " + esc(p.titel || "Gespräch"); klasse = "tl--call"; text = p.call_id ? '<a href="#calls/' + esc(p.call_id) + '" data-call="' + esc(p.call_id) + '">Protokoll öffnen</a>' : ""; }
+    else if (e.event_name === "linkedin_reaction") {
+      var arten = { like: "Gefällt mir", celebrate: "Applaus", support: "Unterstützung", love: "Liebe", insightful: "Interessant", funny: "Witzig" };
+      titel = "LinkedIn: " + esc(arten[p.art] || "Reaktion") + " auf „" + esc(p.beitrag || "Beitrag") + "“";
+      klasse = "tl--linkedin";
+      text = esc((p.kanal === "daniel" ? "Beitrag von Daniel" : "Beitrag der Firmenseite") + (p.veroeffentlicht ? " vom " + new Date(p.veroeffentlicht).toLocaleDateString("de-DE") : "")) +
+        (p.url ? ' · <a href="' + esc(p.url) + '" target="_blank" rel="noopener">Beitrag öffnen</a>' : "") +
+        ' <small class="leise">Zeitpunkt = wann die Liste eingefügt wurde</small>';
+    }
     else { titel = esc(e.event_name); }
     return '<li class="tl ' + klasse + '"><span class="tl-punkt"></span><div class="tl-inhalt"><div class="tl-kopf tl-kopf--fest"><span class="tl-zeit">' + zeit(e.zeit) + "</span><b>" + titel + "</b></div>" +
       (text ? '<div class="tl-text">' + text + "</div>" : "") + "</div></li>";

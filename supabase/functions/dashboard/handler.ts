@@ -141,6 +141,44 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       if (!id) throw fehler("contact_id fehlt");
       return ["dashboard_kontakt_loeschen", { p_contact_id: id }];
     }
+    case "linkedin":
+      return ["dashboard_linkedin", {}];
+    case "linkedin_erfassen": {
+      const roh = Array.isArray(b.personen) ? b.personen : [];
+      if (roh.length > 5000) throw fehler("zu viele Personen auf einmal (max. 5000)");
+      const personen = roh
+        .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+        .map((x) => ({ name: textOderLeer(x.name, 200).trim(), position: textOderLeer(x.position, 300).trim(), art: textOderLeer(x.art, 20) }))
+        .filter((x) => x.name);
+      const id = uuidOderNull(b.beitrag_id);
+      const rb = (b.beitrag && typeof b.beitrag === "object" ? b.beitrag : {}) as Record<string, unknown>;
+      let beitrag: Record<string, unknown> | null = null;
+      if (!id) {
+        const kanal = textOderLeer(rb.kanal, 20);
+        if (kanal !== "firmenseite" && kanal !== "daniel") throw fehler("Kanal fehlt (firmenseite oder daniel)");
+        const titel = textOderLeer(rb.titel, 300).trim();
+        if (!titel) throw fehler("Titel des Beitrags fehlt");
+        const url = textOderLeer(rb.url, 500).trim();
+        if (url && !/^https:\/\/([a-z]+\.)?linkedin\.com\//i.test(url)) throw fehler("Link muss ein LinkedIn-Link sein");
+        const datum = textOderLeer(rb.veroeffentlicht, 10);
+        beitrag = { kanal, titel, url, veroeffentlicht: /^\d{4}-\d{2}-\d{2}$/.test(datum) ? datum : "" };
+      }
+      return ["dashboard_linkedin_erfassen", { p: { beitrag_id: id, beitrag, personen }, p_von: email }];
+    }
+    case "linkedin_person": {
+      const id = uuidOderNull(b.person_id);
+      if (!id) throw fehler("person_id fehlt");
+      const was = textOderLeer(b.was, 20);
+      if (!["zuordnen", "loesen", "ignorieren", "zurueckholen", "kontakt_anlegen"].includes(was)) throw fehler("unbekannte Aktion");
+      const kontakt = uuidOderNull(b.contact_id);
+      if (was === "zuordnen" && !kontakt) throw fehler("contact_id fehlt");
+      return ["dashboard_linkedin_person", { p_person_id: id, p_aktion: was, p_contact_id: kontakt }];
+    }
+    case "linkedin_beitrag_loeschen": {
+      const id = uuidOderNull(b.beitrag_id);
+      if (!id) throw fehler("beitrag_id fehlt");
+      return ["dashboard_linkedin_beitrag_loeschen", { p_beitrag_id: id }];
+    }
     default:
       return null;
   }
