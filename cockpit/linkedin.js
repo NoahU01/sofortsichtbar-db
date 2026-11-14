@@ -54,17 +54,53 @@
     return Object.keys(namen).length;
   }
 
+  // Follower-Tabelle aus Excel/Sheets (Tab-getrennt, sonst ; oder ,) mit Kopfzeile
+  var MONAT = { januar: 1, jan: 1, january: 1, februar: 2, feb: 2, february: 2, "märz": 3, maerz: 3, mar: 3, march: 3, april: 4, apr: 4,
+    mai: 5, may: 5, juni: 6, jun: 6, june: 6, juli: 7, jul: 7, july: 7, august: 8, aug: 8, september: 9, sep: 9, sept: 9,
+    oktober: 10, okt: 10, oct: 10, october: 10, november: 11, nov: 11, dezember: 12, dez: 12, dec: 12, december: 12 };
+  function monat(s) {
+    s = String(s || "").trim().toLowerCase();
+    var m = /^([a-zäöü]+)\.?\s+(\d{4})$/.exec(s);
+    if (m && MONAT[m[1]]) return m[2] + "-" + ("0" + MONAT[m[1]]).slice(-2) + "-01";
+    m = /^(\d{1,2})[./](\d{4})$/.exec(s); if (m && +m[1] >= 1 && +m[1] <= 12) return m[2] + "-" + ("0" + m[1]).slice(-2) + "-01";
+    m = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(s); if (m) return m[1] + "-" + m[2] + "-" + (m[3] || "01");
+    m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s); if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+    return "";
+  }
+  function erkenneFollower(text) {
+    var zeilen = String(text || "").split(/\r?\n/).filter(function (z) { return z.trim(); });
+    if (zeilen.length < 2) return { follower: [], fehlt: "Kopfzeile und mindestens eine Zeile" };
+    var trenner = zeilen[0].indexOf("\t") >= 0 ? "\t" : zeilen[0].indexOf(";") >= 0 ? ";" : ",";
+    var kopf = zeilen[0].split(trenner).map(function (k) { return k.trim().toLowerCase(); });
+    function spalte(re) { for (var i = 0; i < kopf.length; i++) if (re.test(kopf[i])) return i; return -1; }
+    var s = { name: spalte(/^(name|vollständiger name|full name)/), unternehmen: spalte(/^(unternehmen|firma|company)/),
+              position: spalte(/^(position|headline|titel|job)/), seit: spalte(/(folgt|follow|seit|since)/),
+              link: spalte(/(link|url|profil|linkedin)/) };
+    if (s.name < 0) return { follower: [], fehlt: "Spalte „Name“" };
+    var mitLink = 0, follower = [];
+    zeilen.slice(1).forEach(function (z) {
+      var c = z.split(trenner).map(function (x) { return x.trim().replace(/^"|"$/g, ""); });
+      var name = c[s.name] || "";
+      if (!name) return;
+      var link = s.link >= 0 ? c[s.link] || "" : "";
+      if (!/^https?:\/\/([a-z]+\.)?linkedin\.com\/in\//i.test(link)) link = ""; else mitLink++;
+      follower.push({ name: name, unternehmen: s.unternehmen >= 0 ? c[s.unternehmen] || "" : "", position: s.position >= 0 ? c[s.position] || "" : "",
+                      folgt_seit: s.seit >= 0 ? monat(c[s.seit]) : "", profil_url: link });
+    });
+    return { follower: follower, mitLink: mitLink, spalten: s };
+  }
+
   var ARTNAME = { like: "Gefällt mir", celebrate: "Applaus", support: "Unterstützung", love: "Liebe", insightful: "Interessant", funny: "Witzig", reaktion: "Reaktion" };
   var KANAL = { firmenseite: "Firmenseite", daniel: "Daniel" };
 
   if (typeof window === "undefined" || !window.cockpit) {
-    if (typeof module !== "undefined") module.exports = { erkenne: erkenne, weitere: weitere };
+    if (typeof module !== "undefined") module.exports = { erkenne: erkenne, weitere: weitere, erkenneFollower: erkenneFollower };
     return;
   }
 
   /* ---------- Modul ---------- */
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var Z = { daten: null, filter: "mehrfach", beitrag: null, kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], weitere: 0, meldung: "", suche: null, alleBeitraege: false };
+  var Z = { daten: null, filter: "mehrfach", beitrag: null, kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], weitere: 0, meldung: "", suche: null, alleBeitraege: false, fText: "", fErkannt: null, fMeldung: "" };
   var aktiv = false;
 
   function zahl(n) { return n == null ? "–" : Number(n).toLocaleString("de-DE"); }
@@ -111,7 +147,8 @@
           return '<button type="button" data-li-filter="' + f[0] + '" aria-pressed="' + (Z.filter === f[0]) + '">' + f[1] + "</button>";
         }).join("") + "</div></div>" + personen() + "</section>" +
       '<section class="karte panel"><div class="panel-kopf"><h2>Beiträge</h2><span class="leise">Zahlen aus Buffer, täglich aktualisiert</span></div>' +
-        beitraege() + "</section>";
+        beitraege() + "</section>" +
+      '<section class="karte panel" data-li-follower>' + followerKarte() + "</section>";
   }
 
   /* ---------- Einfügen ---------- */
@@ -253,11 +290,33 @@
       }).join("") + "</tbody></table></div>" + umschalten;
   }
 
+  /* ---------- Follower ---------- */
+  function followerKarte() {
+    var e = Z.fErkannt;
+    var info = !Z.fText.trim() ? '<span class="leise">' + (Z.fMeldung ? "" : "Noch nichts eingefügt.") + "</span>"
+      : e.fehlt ? '<span class="li-warnung">Nicht erkannt – es fehlt: ' + esc(e.fehlt) + ". Bitte die Tabelle mit Kopfzeile kopieren.</span>"
+      : "<b>" + e.follower.length + " Follower erkannt</b>" + " · " + e.mitLink + " mit LinkedIn-Link" +
+        " · Spalten: " + ["name", "unternehmen", "position", "seit", "link"].filter(function (k) { return e.spalten[k] >= 0; }).map(function (k) {
+          return { name: "Name", unternehmen: "Unternehmen", position: "Position", seit: "Folgt seit", link: "Link" }[k]; }).join(", ");
+    return '<div class="panel-kopf"><h2>Follower der Firmenseite</h2><span class="leise">werden Kontakte mit Herkunft und Tag „LinkedIn-Follower“, Newsletter: Nein</span></div>' +
+      '<label class="feld">Follower-Liste <small>in Excel die Tabelle samt Kopfzeile markieren, Cmd+C, hier Cmd+V. Bekannte Personen werden ergänzt, nicht doppelt angelegt.</small>' +
+        '<textarea data-li-ftext rows="4" placeholder="Name → Unternehmen → Position → Folgt seit → Link">' + esc(Z.fText) + "</textarea></label>" +
+      '<div class="li-vorschau"><div class="li-info">' + info + (Z.fMeldung ? ' <span class="li-ok">' + esc(Z.fMeldung) + "</span>" : "") + "</div>" +
+        '<button type="button" class="knopf knopf--primaer" data-li-fspeichern' + (e && e.follower.length ? "" : " disabled") + ">Follower übernehmen</button></div>";
+  }
+  function followerNeu() { var k = wurzel.querySelector("[data-li-follower]"); if (k) k.innerHTML = followerKarte(); }
+
   /* ---------- Bedienung ---------- */
   var suchTimer;
   wurzel.addEventListener("input", function (e) {
     if (!aktiv) return;
     var t = e.target;
+    if (t.hasAttribute("data-li-ftext")) {
+      Z.fText = t.value; Z.fErkannt = erkenneFollower(t.value); Z.fMeldung = "";
+      var k = wurzel.querySelector("[data-li-follower] .li-vorschau");
+      if (k) { var tmp = document.createElement("div"); tmp.innerHTML = followerKarte(); k.replaceWith(tmp.querySelector(".li-vorschau")); }
+      return;
+    }
     if (t.hasAttribute("data-li-text")) { Z.text = t.value; Z.erkannt = erkenne(t.value); Z.weitere = weitere(t.value); Z.meldung = ""; vorschauNeu(); }
     else if (t.hasAttribute("data-li-feld")) { Z[t.getAttribute("data-li-feld")] = t.value; if (t.getAttribute("data-li-feld") === "titel") vorschauNeu(); }
     else if (t.hasAttribute("data-li-suche")) {
@@ -289,6 +348,16 @@
       return;
     }
     if ((t = e.target.closest("[data-li-speichern]"))) return speichern(t);
+    if ((t = e.target.closest("[data-li-fspeichern]"))) {
+      t.disabled = true; t.textContent = "Wird übernommen …";
+      var knopf = t;
+      return api("linkedin_follower", { follower: Z.fErkannt.follower }).then(function (r) {
+        Z.fMeldung = r.gesamt + " Follower übernommen: " + r.neue_kontakte + " neue Kontakte, " + r.verknuepft + " mit bestehenden Kontakten verbunden" +
+          (r.mit_link ? ", " + r.mit_link + " Links" : "") + (r.team ? ", " + r.team + " vom Team übersprungen" : "");
+        Z.fText = ""; Z.fErkannt = null;
+        return laden();
+      }).catch(function (err) { knopf.disabled = false; knopf.textContent = "Fehler: " + err.message; });
+    }
     if (e.target.closest("[data-li-alle]")) { Z.alleBeitraege = !Z.alleBeitraege; return zeichnen(); }
     if ((t = e.target.closest("[data-li-nachtragen]"))) {
       Z.beitrag = t.getAttribute("data-li-nachtragen"); Z.meldung = "";

@@ -118,8 +118,11 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       if (!mail.includes("@")) throw fehler("E-Mail fehlt");
       return ["dashboard_absender_ignorieren", { p_email: mail }];
     }
-    case "kontakte_liste":
-      return ["dashboard_kontakte_liste", { p_suche: textOderLeer(b.suche, 100) }];
+    case "kontakte_liste": {
+      const filter = textOderLeer(b.filter, 60);
+      if (filter && !/^(newsletter|herkunft:[a-z_]+|tag:[\p{L}\p{N}_ -]+)$/u.test(filter)) throw fehler("unbekannter Filter");
+      return ["dashboard_kontakte_liste", { p_suche: textOderLeer(b.suche, 100), p_filter: filter || null }];
+    }
     case "kontakt": {
       const id = uuidOderNull(b.contact_id);
       if (!id) throw fehler("contact_id fehlt");
@@ -130,11 +133,17 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       const id = uuidOderNull(k.contact_id);
       if (!id) throw fehler("contact_id fehlt");
       const p: Record<string, unknown> = { contact_id: id };
-      for (const [f, max] of [["vorname", 100], ["nachname", 100], ["telefon", 50], ["lifecycle_stage", 20], ["zielgruppe", 100],
-                              ["paketinteresse", 20], ["lost_grund", 300], ["owner", 50], ["notizen", 20_000]] as const) {
+      for (const [f, max] of [["titel", 50], ["vorname", 100], ["nachname", 100], ["telefon", 50], ["position", 300], ["lifecycle_stage", 20],
+                              ["zielgruppe", 100], ["paketinteresse", 20], ["lost_grund", 300], ["owner", 50], ["notizen", 20_000],
+                              ["herkunft", 30], ["newsletter_grundlage", 20]] as const) {
         p[f] = textOderLeer(k[f], max);
       }
-      return ["dashboard_kontakt_speichern", { p }];
+      p.tags = (Array.isArray(k.tags) ? k.tags : []).slice(0, 30).map((t) => textOderLeer(t, 40)).filter(Boolean);
+      p.newsletter_erlaubt = k.newsletter_erlaubt === true;
+      if (p.newsletter_erlaubt && !["einwilligung", "bestandskunde"].includes(String(p.newsletter_grundlage))) {
+        throw fehler("Newsletter erlaubt nur mit Grundlage (Einwilligung oder Bestandskunde)");
+      }
+      return ["dashboard_kontakt_speichern", { p, p_von: email }];
     }
     case "kontakt_loeschen": {
       const id = uuidOderNull(b.contact_id);
@@ -143,6 +152,22 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
     }
     case "linkedin":
       return ["dashboard_linkedin", {}];
+    case "linkedin_follower": {
+      const roh = Array.isArray(b.follower) ? b.follower : [];
+      if (!roh.length) throw fehler("keine Follower");
+      if (roh.length > 5000) throw fehler("zu viele Follower auf einmal (max. 5000)");
+      const follower = roh
+        .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+        .map((x) => ({
+          name: textOderLeer(x.name, 200).trim(),
+          unternehmen: textOderLeer(x.unternehmen, 200).trim(),
+          position: textOderLeer(x.position, 300).trim(),
+          profil_url: textOderLeer(x.profil_url, 300).trim(),
+          folgt_seit: /^\d{4}-\d{2}-\d{2}$/.test(textOderLeer(x.folgt_seit, 10)) ? textOderLeer(x.folgt_seit, 10) : "",
+        }))
+        .filter((x) => x.name);
+      return ["dashboard_linkedin_follower", { p: { follower }, p_von: email }];
+    }
     case "linkedin_erfassen": {
       const roh = Array.isArray(b.personen) ? b.personen : [];
       if (roh.length > 5000) throw fehler("zu viele Personen auf einmal (max. 5000)");

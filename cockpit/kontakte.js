@@ -4,15 +4,22 @@
 (function () {
   "use strict";
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var Z = { liste: [], suche: "", detail: null, offen: {} };
+  var Z = { liste: [], suche: "", filter: "", detail: null, offen: {} };
   var aktiv = false;
 
   var STATUS = { lead: "Lead", mql: "MQL", sql: "SQL", kunde: "Kunde", verloren: "Verloren" };
   var PAKET = { "": "–", fokus: "Fokus", team: "Team", komplett: "Komplett" };
+  var HERKUNFT = { "": "–", termin: "Terminbuchung", postfach: "Postfach", call: "Call", website: "Website",
+                   linkedin_follower: "LinkedIn-Follower", linkedin_reaktion: "LinkedIn-Reaktion", manuell: "Manuell", import: "Import" };
+  var GRUNDLAGE = { "": "– bitte wählen –", einwilligung: "Einwilligung (z. B. Formular, DOI)", bestandskunde: "Bestandskunde" };
+  var FILTER = [["", "Alle Kontakte"], ["newsletter", "Newsletter erlaubt"], ["tag:linkedin_follower", "Tag: LinkedIn-Follower"],
+                ["herkunft:linkedin_follower", "Herkunft: LinkedIn-Follower"], ["herkunft:linkedin_reaktion", "Herkunft: LinkedIn-Reaktion"],
+                ["herkunft:termin", "Herkunft: Terminbuchung"], ["herkunft:postfach", "Herkunft: Postfach"], ["herkunft:call", "Herkunft: Call"],
+                ["herkunft:website", "Herkunft: Website"]];
   var SEITENTYP = { home: "Startseite", preis: "Preise", kontakt: "Kontakt", zielgruppe: "Zielgruppen", produkt: "Produkt",
                     rechtliches: "Rechtliches", karriere: "Karriere", blog: "Blog", referenz: "Referenzen", sonstige: "Sonstige" };
 
-  function name(k) { return [k.vorname, k.nachname].filter(Boolean).join(" ") || k.email || "Ohne Namen"; }
+  function name(k) { return [k.titel, k.vorname, k.nachname].filter(Boolean).join(" ") || k.email || "Ohne Namen"; }
   function zeit(d) { return new Date(d).toLocaleString("de-DE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
   function datum(d) { return new Date(d).toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" }); }
   function relativ(d) {
@@ -34,9 +41,9 @@
   /* ---------- Liste ---------- */
   function listeLaden() {
     Z.detail = null;
-    return api("kontakte_liste", { suche: Z.suche }).then(function (r) {
+    return api("kontakte_liste", { suche: Z.suche, filter: Z.filter }).then(function (r) {
       Z.liste = r;
-      if (!Z.suche) { var z = document.querySelector('[data-zahl="kontakte"]'); if (z) z.textContent = r.length || ""; }
+      if (!Z.suche && !Z.filter) { var z = document.querySelector('[data-zahl="kontakte"]'); if (z) z.textContent = r.length || ""; }
       if (aktiv) listeZeichnen();
     }).catch(fehler);
   }
@@ -44,17 +51,21 @@
   function listeZeichnen() {
     var fokus = document.activeElement && document.activeElement.hasAttribute("data-k-suche");
     wurzel.innerHTML =
-      '<div class="kopf"><div><h1>Kontakte</h1><p class="leise">Alle Personen aus Terminbuchungen, Calls und künftigen Quellen</p></div></div>' +
-      '<div class="leiste"><input type="search" class="suche" data-k-suche placeholder="Name, E-Mail oder Firma" value="' + esc(Z.suche) + '"></div>' +
+      '<div class="kopf"><div><h1>Kontakte</h1><p class="leise">Alle Personen aus Terminbuchungen, Postfach, Calls und LinkedIn</p></div></div>' +
+      '<div class="leiste k-leiste"><input type="search" class="suche" data-k-suche placeholder="Name, E-Mail, Firma oder Position" value="' + esc(Z.suche) + '">' +
+        '<select class="k-filter" data-k-filter aria-label="Filter">' + FILTER.map(function (f) {
+          return '<option value="' + f[0] + '"' + (Z.filter === f[0] ? " selected" : "") + ">" + esc(f[1]) + "</option>";
+        }).join("") + "</select></div>" +
       '<p class="zahlzeile">' + Z.liste.length + (Z.liste.length === 1 ? " Kontakt" : " Kontakte") + "</p>" +
-      (Z.liste.length ? '<div class="karte tabelle-rahmen"><table class="tabelle tabelle--klick"><thead><tr><th>Name</th><th>Firma</th><th>Status</th><th>Letzte Aktivität</th>' +
-        '<th class="n">Besuche</th><th class="n">Termine</th><th class="n">Calls</th></tr></thead><tbody>' +
+      (Z.liste.length ? '<div class="karte tabelle-rahmen"><table class="tabelle tabelle--klick"><thead><tr><th>Name</th><th>Firma</th><th>Herkunft</th><th>Status</th><th>Letzte Aktivität</th>' +
+        '<th class="n">Besuche</th><th class="n">Termine</th><th class="n">LinkedIn</th><th class="n">Calls</th></tr></thead><tbody>' +
         Z.liste.map(function (k) {
-          return '<tr data-kontakt="' + k.contact_id + '" tabindex="0"><td><b>' + esc(name(k)) + '</b><br><small class="leise">' + esc(k.email || "") + "</small></td>" +
-            "<td>" + esc(k.firma || "–") + "</td><td>" + pille(k.lifecycle_stage) + "</td><td>" + relativ(k.letzte_aktivitaet) + "</td>" +
-            '<td class="n">' + k.besuche + '</td><td class="n">' + k.termine + '</td><td class="n">' + k.calls + "</td></tr>";
+          return '<tr data-kontakt="' + k.contact_id + '" tabindex="0"><td><b>' + esc(name(k)) + "</b>" + (k.newsletter_erlaubt ? ' <span class="pille pille--gut" title="Newsletter erlaubt">NL</span>' : "") +
+              '<br><small class="leise">' + esc(k.email || k.position || "") + "</small></td>" +
+            "<td>" + esc(k.firma || "–") + "</td><td>" + esc(HERKUNFT[k.herkunft || ""] || k.herkunft) + "</td><td>" + pille(k.lifecycle_stage) + "</td><td>" + relativ(k.letzte_aktivitaet) + "</td>" +
+            '<td class="n">' + k.besuche + '</td><td class="n">' + k.termine + '</td><td class="n">' + (k.linkedin || 0) + '</td><td class="n">' + k.calls + "</td></tr>";
         }).join("") + "</tbody></table></div>"
-        : '<div class="karte leer">' + (Z.suche ? "Kein Kontakt gefunden." : "Noch keine Kontakte. Sie entstehen automatisch mit jeder Terminbuchung.") + "</div>");
+        : '<div class="karte leer">' + (Z.suche || Z.filter ? "Kein Kontakt gefunden." : "Noch keine Kontakte. Sie entstehen automatisch mit jeder Terminbuchung.") + "</div>");
     if (fokus) { var f = wurzel.querySelector("[data-k-suche]"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }
   }
 
@@ -72,13 +83,22 @@
     var opt = function (map, wert) { return Object.keys(map).map(function (v) { return '<option value="' + v + '"' + ((wert || "") === v ? " selected" : "") + ">" + esc(map[v]) + "</option>"; }).join(""); };
     wurzel.innerHTML =
       '<p class="zurueck"><a href="#kontakte" data-zurueck>← Alle Kontakte</a></p>' +
-      '<div class="kopf"><div><h1>' + esc(name(k)) + "</h1><p class=\"leise\">" + esc([k.email, k.firma].filter(Boolean).join(" · ")) + " · seit " + datum(k.created_at) + "</p></div>" + pille(k.lifecycle_stage) + "</div>" +
+      '<div class="kopf"><div><h1>' + esc(name(k)) + "</h1><p class=\"leise\">" + esc([k.position, k.email, k.firma, HERKUNFT[k.herkunft || ""] && k.herkunft ? "über " + HERKUNFT[k.herkunft] : ""].filter(Boolean).join(" · ")) + " · seit " + datum(k.created_at) + "</p></div>" + pille(k.lifecycle_stage) + "</div>" +
       '<div class="detail-raster">' +
         '<section class="karte panel"><div class="panel-kopf"><h2>Timeline</h2><span class="leise">neueste zuerst</span></div>' + timeline(d.timeline) + "</section>" +
         '<div class="detail-seite">' +
           '<section class="karte panel"><div class="panel-kopf"><h2>Angaben</h2></div><form class="stammdaten" data-stammdaten>' +
-            '<div class="reihe"><label class="feld">Vorname<input name="vorname" value="' + esc(k.vorname) + '"></label><label class="feld">Nachname<input name="nachname" value="' + esc(k.nachname) + '"></label></div>' +
+            '<div class="reihe reihe--titel"><label class="feld">Titel<input name="titel" value="' + esc(k.titel) + '" placeholder="Dr."></label><label class="feld">Vorname<input name="vorname" value="' + esc(k.vorname) + '"></label></div>' +
+            '<label class="feld">Nachname<input name="nachname" value="' + esc(k.nachname) + '"></label>' +
+            '<label class="feld">Position<input name="position" value="' + esc(k.position) + '"></label>' +
             '<label class="feld">Telefon<input name="telefon" value="' + esc(k.telefon) + '"></label>' +
+            '<div class="reihe"><label class="feld">Herkunft <small>Erstkontakt</small><select name="herkunft">' + opt(HERKUNFT, k.herkunft) + "</select></label>" +
+              '<label class="feld">Tags <small>mit Komma trennen</small><input name="tags" value="' + esc((k.tags || []).join(", ")) + '" placeholder="linkedin_follower"></label></div>' +
+            '<fieldset class="nl-feld"><legend>Newsletter</legend>' +
+              '<label class="nl-schalter"><input type="checkbox" name="newsletter_erlaubt"' + (k.newsletter_erlaubt ? " checked" : "") + "> Darf den Newsletter bekommen</label>" +
+              '<label class="feld" data-nl-grund' + (k.newsletter_erlaubt ? "" : " hidden") + '>Grundlage<select name="newsletter_grundlage">' + opt(GRUNDLAGE, k.newsletter_grundlage) + "</select></label>" +
+              '<small class="leise">' + (k.newsletter_erlaubt && k.newsletter_seit ? "erlaubt seit " + datum(k.newsletter_seit) + " · " : "") + "Jede Änderung wird mit Datum und Person protokolliert.</small>" +
+            "</fieldset>" +
             '<div class="reihe"><label class="feld">Status<select name="lifecycle_stage">' + opt(STATUS, k.lifecycle_stage) + '</select></label>' +
               '<label class="feld">Paketinteresse<select name="paketinteresse">' + opt(PAKET, k.paketinteresse) + "</select></label></div>" +
             '<div class="reihe"><label class="feld">Zielgruppe<input name="zielgruppe" value="' + esc(k.zielgruppe) + '" placeholder="z. B. Makler"></label>' +
@@ -90,8 +110,9 @@
           "</form></section>" +
           '<section class="karte panel"><div class="panel-kopf"><h2>Kennungen</h2></div>' +
             (d.identitaeten.length ? '<table class="tabelle"><tbody>' + d.identitaeten.map(function (i) {
-              return "<tr><td>" + esc({ visitor_id: "Website-Besucher", email: "E-Mail", telefon: "Telefon" }[i.typ] || i.typ) + '</td><td class="kennung">' +
-                esc(i.typ === "visitor_id" ? i.wert.slice(0, 8) + "…" : i.wert) + '</td><td class="leise">' + esc(i.quelle) + "</td></tr>";
+              return "<tr><td>" + esc({ visitor_id: "Website-Besucher", email: "E-Mail", telefon: "Telefon", linkedin_profile_url: "LinkedIn" }[i.typ] || i.typ) + '</td><td class="kennung">' +
+                (i.typ === "linkedin_profile_url" ? '<a href="' + esc(i.wert) + '" target="_blank" rel="noopener">' + esc(i.wert.replace(/^https:\/\/(www\.)?linkedin\.com/, "")) + "</a>"
+                  : esc(i.typ === "visitor_id" ? i.wert.slice(0, 8) + "…" : i.wert)) + '</td><td class="leise">' + esc(i.quelle) + "</td></tr>";
             }).join("") + "</tbody></table>" : '<p class="panel-leer">Keine.</p>') +
           "</section>" +
           '<div class="gefahrzone"><button type="button" class="knopf knopf--gefahr" data-k-loeschen>Kontakt endgültig löschen</button>' +
@@ -180,6 +201,10 @@
                   p.ort, p.online ? "online" : "", p.postfach ? "Kalender " + p.postfach : ""].filter(Boolean).join(" · "));
     }
     else if (e.event_name === "call_recorded") { titel = "Call: " + esc(p.titel || "Gespräch"); klasse = "tl--call"; text = p.call_id ? '<a href="#calls/' + esc(p.call_id) + '" data-call="' + esc(p.call_id) + '">Protokoll öffnen</a>' : ""; }
+    else if (e.event_name === "linkedin_follow") {
+      titel = "Folgt der Firmenseite auf LinkedIn"; klasse = "tl--linkedin";
+      text = '<small class="leise">' + (p.nur_monat ? "seit " + new Date(e.zeit).toLocaleDateString("de-DE", { month: "long", year: "numeric" }) + " (laut Follower-Liste nur der Monat)" : "") + "</small>";
+    }
     else if (e.event_name === "linkedin_reaction") {
       var arten = { like: "Gefällt mir", celebrate: "Applaus", support: "Unterstützung", love: "Liebe", insightful: "Interessant", funny: "Witzig" };
       titel = "LinkedIn: " + esc(arten[p.art] || "Reaktion") + " auf „" + esc(p.beitrag || "Beitrag") + "“";
@@ -205,7 +230,10 @@
     suchTimer = setTimeout(function () { Z.suche = e.target.value.trim(); listeLaden(); }, 300);
   });
   wurzel.addEventListener("change", function (e) {
-    if (!aktiv || e.target.name !== "lifecycle_stage") return;
+    if (!aktiv) return;
+    if (e.target.hasAttribute("data-k-filter")) { Z.filter = e.target.value; return listeLaden(); }
+    if (e.target.name === "newsletter_erlaubt") { var g = wurzel.querySelector("[data-nl-grund]"); if (g) g.hidden = !e.target.checked; return; }
+    if (e.target.name !== "lifecycle_stage") return;
     var l = wurzel.querySelector("[data-lost]"); if (l) l.hidden = e.target.value !== "verloren";
   });
   function oeffneKontakt(tr) { C.oeffne("kontakte", tr.getAttribute("data-kontakt")); }
@@ -231,7 +259,10 @@
     e.preventDefault();
     var f = e.target, m = wurzel.querySelector("[data-k-meldung]"), knopf = f.querySelector('button[type="submit"]');
     var daten = { contact_id: Z.detail.kontakt.contact_id };
-    ["vorname", "nachname", "telefon", "lifecycle_stage", "paketinteresse", "zielgruppe", "owner", "lost_grund", "notizen"].forEach(function (n) { daten[n] = f.elements[n].value; });
+    ["titel", "vorname", "nachname", "telefon", "position", "lifecycle_stage", "paketinteresse", "zielgruppe", "owner", "lost_grund", "notizen", "herkunft", "newsletter_grundlage"].forEach(function (n) { daten[n] = f.elements[n].value; });
+    daten.tags = f.elements.tags.value.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+    daten.newsletter_erlaubt = f.elements.newsletter_erlaubt.checked;
+    if (daten.newsletter_erlaubt && !daten.newsletter_grundlage) { m.textContent = "Bitte die Grundlage für den Newsletter wählen."; return; }
     knopf.disabled = true; m.textContent = "";
     api("kontakt_speichern", { kontakt: daten }).then(function () {
       return detailLaden(daten.contact_id).then(function () { var mm = wurzel.querySelector("[data-k-meldung]"); if (mm) { mm.textContent = "Gespeichert."; mm.classList.add("ok"); } });
