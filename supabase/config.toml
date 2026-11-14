@@ -428,3 +428,7 @@ verify_jwt = false
 [functions.dashboard]
 # Das Token stammt aus Daniels Supabase-Projekt, nicht aus diesem – Prüfung in der Function.
 verify_jwt = false
+
+[functions.suche-import]
+# Aufruf per pg_cron mit Header x-import-secret, kein JWT.
+verify_jwt = false

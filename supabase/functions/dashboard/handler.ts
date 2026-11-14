@@ -101,6 +101,11 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
         p_intern: b.intern === true,
       }];
     }
+    case "suche": {
+      const tage = Math.min(Math.max(Number(b.tage) || 30, 1), 480);
+      const bis = new Date(), von = new Date(bis.getTime() - (tage - 1) * 864e5);
+      return ["dashboard_suche", { p_von: von.toISOString().slice(0, 10), p_bis: bis.toISOString().slice(0, 10) }];
+    }
     case "kontakte_liste":
       return ["dashboard_kontakte_liste", { p_suche: textOderLeer(b.suche, 100) }];
     case "kontakt": {

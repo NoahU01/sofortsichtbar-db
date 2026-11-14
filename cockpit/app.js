@@ -96,6 +96,25 @@
     b.addEventListener("click", function () { oeffne(b.getAttribute("data-nav")); });
   });
 
+  /* ---------- Tooltip an Diagrammen (alle Bereiche) ---------- */
+  var main = $("[data-main]");
+  main.addEventListener("mousemove", function (e) {
+    var d = e.target.closest && e.target.closest(".diagramm"); if (!d) return;
+    var g = e.target.closest(".saeule"), tip = d.querySelector(".tooltip");
+    d.querySelectorAll(".saeule--hover").forEach(function (x) { if (x !== g) x.classList.remove("saeule--hover"); });
+    if (!g) { tip.hidden = true; return; }
+    g.classList.add("saeule--hover");
+    var box = d.getBoundingClientRect();
+    tip.textContent = g.getAttribute("data-tip"); tip.hidden = false;
+    var x = e.clientX - box.left, w = tip.offsetWidth;
+    tip.style.left = Math.max(0, Math.min(box.width - w, x - w / 2)) + "px";
+    tip.style.top = Math.max(0, e.clientY - box.top - 44) + "px";
+  });
+  main.addEventListener("mouseout", function (e) {
+    var d = e.target.closest && e.target.closest(".diagramm");
+    if (d && !d.contains(e.relatedTarget)) { d.querySelector(".tooltip").hidden = true; d.querySelectorAll(".saeule--hover").forEach(function (x) { x.classList.remove("saeule--hover"); }); }
+  });
+
   sb.auth.getSession().then(function (s) { s.data.session ? start() : zeigeLogin(); });
   sb.auth.onAuthStateChange(function (ereignis) { if (ereignis === "SIGNED_IN" && appEl.hidden) start(); });
 })();

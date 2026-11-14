@@ -26,7 +26,8 @@
   function stop() { aktiv = false; }
 
   function laden() {
-    api("website", { tage: Z.tage, intern: Z.intern }).then(function (d) { Z.daten = d; if (aktiv) zeichnen(); })
+    Promise.all([api("website", { tage: Z.tage, intern: Z.intern }), api("suche", { tage: Z.tage }).catch(function () { return null; })])
+      .then(function (r) { Z.daten = r[0]; Z.ga4 = r[1] && r[1].ga4; if (aktiv) zeichnen(); })
       .catch(function (e) { if (aktiv) wurzel.innerHTML = '<div class="karte leer">Fehler: ' + esc(e.message) + "</div>"; });
   }
 
@@ -50,6 +51,7 @@
         kachel("Termine gebucht", zahl(k.buchungen), "über die Website") +
       "</div>" +
       '<section class="karte panel"><div class="panel-kopf"><h2>Seitenaufrufe pro Tag</h2></div>' + verlauf(d.verlauf) + "</section>" +
+      abgleich(k, Z.ga4) +
       '<div class="raster">' +
         panel("Woher die Besucher kommen", "nur Sitzungen mit Einwilligung", quellen(d.quellen)) +
         panel("Weg zur Buchung", "im Zeitraum", trichter(k)) +
@@ -60,6 +62,17 @@
       '<div class="raster">' +
         panel("Geräte", "Anteil der Seitenaufrufe", liste(d.geraete.map(function (x) { return [name(x.geraet), x.anteil + " %"]; }), "Noch keine Daten.")) +
       "</div>";
+  }
+
+  // Eigenes Tracking neben GA4: zeigt, ob beide ähnlich zählen
+  function abgleich(k, g) {
+    if (!g || !g.tage) return '<p class="abgleich leise">Abgleich mit Google Analytics: noch nicht verbunden.</p>';
+    var z = function (a, b) { return "<td class=\"n\">" + zahl(a) + "</td><td class=\"n\">" + zahl(b) + "</td>"; };
+    return '<section class="karte panel"><div class="panel-kopf"><h2>Abgleich mit Google Analytics</h2><span class="leise">gleicher Zeitraum · GA4 zählt nur mit Einwilligung (Statistik)</span></div>' +
+      '<table class="tabelle abgleich-tabelle"><thead><tr><th></th><th class="n">Eigenes Tracking</th><th class="n">GA4</th></tr></thead><tbody>' +
+      "<tr><td>Seitenaufrufe</td>" + z(k.seitenaufrufe, g.seitenaufrufe) + "</tr>" +
+      "<tr><td>Sitzungen</td>" + z(k.sitzungen, g.sitzungen) + "</tr>" +
+      "<tr><td>Besucher / Nutzer</td>" + z(k.besucher, g.nutzer) + "</tr></tbody></table></section>";
   }
 
   function kachel(titel, wert, hinweis) {
@@ -149,25 +162,6 @@
   wurzel.addEventListener("change", function (e) {
     if (!aktiv || !e.target.hasAttribute("data-intern")) return;
     Z.intern = e.target.checked; laden();
-  });
-  // Tooltip am Diagramm
-  wurzel.addEventListener("mousemove", function (e) {
-    if (!aktiv) return;
-    var g = e.target.closest && e.target.closest(".saeule"), d = e.target.closest && e.target.closest(".diagramm");
-    if (!d) return;
-    var tip = d.querySelector(".tooltip");
-    d.querySelectorAll(".saeule--hover").forEach(function (x) { if (x !== g) x.classList.remove("saeule--hover"); });
-    if (!g) { tip.hidden = true; return; }
-    g.classList.add("saeule--hover");
-    var box = d.getBoundingClientRect();
-    tip.textContent = g.getAttribute("data-tip"); tip.hidden = false;
-    var x = e.clientX - box.left, w = tip.offsetWidth;
-    tip.style.left = Math.max(0, Math.min(box.width - w, x - w / 2)) + "px";
-    tip.style.top = Math.max(0, e.clientY - box.top - 44) + "px";
-  });
-  wurzel.addEventListener("mouseout", function (e) {
-    var d = e.target.closest && e.target.closest(".diagramm");
-    if (d && !d.contains(e.relatedTarget)) { d.querySelector(".tooltip").hidden = true; d.querySelectorAll(".saeule--hover").forEach(function (x) { x.classList.remove("saeule--hover"); }); }
   });
   var groesse;
   window.addEventListener("resize", function () { clearTimeout(groesse); groesse = setTimeout(function () { if (aktiv && Z.daten) zeichnen(); }, 200); });

@@ -34,6 +34,12 @@ Website-Events ohne Kontakt löscht ein täglicher pg_cron-Job nach 24 Monaten
 | Cal.com | Webhook → Edge Function `cal-webhook` (HMAC-Prüfung) → `public.ingest_cal_webhook` | Kontakt + E-Mail-Identität + meeting_booked/rescheduled/canceled/no_show |
 | Calls (ChatGPT-Transkripte) | Seite „sofort sichtbar · Calls“ in Daniels empiria-dashboard → Edge Function `dashboard` → `public.dashboard_*` | `core.calls` (Volltextsuche deutsch) + call_recorded in der Timeline |
 
+| Search Console + GA4 | Edge Function `suche-import` (Dienstkonto, täglich 05:30 UTC per pg_cron) → `public.ingest_suche` | `analytics.suchbegriffe`, `analytics.suche_tage`, `analytics.ga4_tage` |
+| Bing Webmaster Tools | dieselbe Function (API-Schlüssel) | wie oben, Suchbegriffe wochenweise |
+
+Einrichten der Suchquellen: `scripts/suche-einrichten.sh <dienstkonto.json>` (setzt
+Secrets, Vault-Eintrag, erster Abruf). Jeder Abruf steht in `analytics.import_laeufe`.
+
 Verknüpfung Website ↔ Termin: Der Browser meldet `meeting_booked` mit
 `properties.booking_uid`. Gleiche uid im Webhook ⇒ die visitor_id wird dem
 Kontakt zugeordnet, alle früheren Besuche hängen rückwirkend an ihm. Die
