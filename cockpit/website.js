@@ -13,7 +13,7 @@
   var KLICKZIEL = { kontakt: "Zur Kontaktseite", mail: "E-Mail", telefon: "Telefon", zielgruppe: "Zielgruppen-Seite", sonstige: "Sonstige" };
 
   function zahl(n) { return n == null ? "–" : Number(n).toLocaleString("de-DE"); }
-  // Ø Sitzungsdauer: "45 s" bzw. "2:05 min"
+  // Sitzungsdauer: "45 s" bzw. "2:05 min"
   function dauer(sek) {
     if (sek == null) return "–";
     sek = Math.round(sek);
@@ -53,7 +53,7 @@
         kachel("Sitzungen", zahl(k.sitzungen)) +
         kachel("Seitenaufrufe", zahl(k.seitenaufrufe)) +
         kachel("Consent", k.einwilligung == null ? "–" : k.einwilligung + " %") +
-        kachel("Verweildauer", dauer(k.verweildauer), k.verweildauer_ausreisser ? "ohne " + k.verweildauer_ausreisser + (k.verweildauer_ausreisser === 1 ? " Ausreißer" : " Ausreißer") : "") +
+        kachel("Verweildauer", dauer(k.verweildauer), "Median je Sitzung") +
         kachel("Leads", zahl(k.leads)) +
       "</div>" +
       '<section class="karte panel"><div class="panel-kopf"><h2>Seitenaufrufe pro Tag</h2></div>' + verlauf(d.verlauf) + "</section>" +
