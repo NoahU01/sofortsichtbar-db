@@ -436,3 +436,7 @@ verify_jwt = false
 [functions.postfach-import]
 # Aufruf per pg_cron mit Header x-import-secret, kein JWT.
 verify_jwt = false
+
+[functions.buffer-import]
+# Aufruf per pg_cron mit Header x-import-secret, kein JWT.
+verify_jwt = false

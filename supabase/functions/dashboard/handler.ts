@@ -163,7 +163,8 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
         const datum = textOderLeer(rb.veroeffentlicht, 10);
         beitrag = { kanal, titel, url, veroeffentlicht: /^\d{4}-\d{2}-\d{2}$/.test(datum) ? datum : "" };
       }
-      return ["dashboard_linkedin_erfassen", { p: { beitrag_id: id, beitrag, personen }, p_von: email }];
+      const weitere = Math.min(Math.max(Math.trunc(Number(b.weitere) || 0), 0), 50);
+      return ["dashboard_linkedin_erfassen", { p: { beitrag_id: id, beitrag, personen, weitere }, p_von: email }];
     }
     case "linkedin_person": {
       const id = uuidOderNull(b.person_id);

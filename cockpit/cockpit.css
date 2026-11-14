@@ -294,7 +294,7 @@ mark { background: var(--treffer); color: inherit; border-radius: 2px; padding: 
 .li-position { display: block; font-size: .76rem; color: var(--ink-3); max-width: 46ch; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .li-personen .n small { display: block; font-family: "Roboto", system-ui, sans-serif; font-size: .72rem; margin-top: .1rem; }
 .li-personen td.n, .li-personen th.n { padding-right: 1.4rem; }
-.li-aktionen { text-align: right; white-space: nowrap; }
+.li-aktionen { text-align: right; white-space: nowrap; padding-left: 1.1rem !important; }
 .tabelle .pille { font-family: "Roboto", system-ui, sans-serif; }
 .li-kontakt { min-width: 260px; }
 .li-kontakt .suche { margin-bottom: .4rem; }
@@ -306,3 +306,5 @@ mark { background: var(--treffer); color: inherit; border-radius: 2px; padding: 
 .li-link--gefahr { color: var(--bad-ink); }
 .tabelle-scroll { overflow-x: auto; }
 .tl--linkedin .tl-punkt { background: #0A66C2; border-color: #0A66C2; }
+.li-mehr { margin: .7rem 0 0; }
+.li-nachtragen .knoepfe { align-items: center; }

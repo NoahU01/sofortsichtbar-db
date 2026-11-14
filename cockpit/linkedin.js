@@ -40,17 +40,31 @@
     return personen;
   }
 
+  // Reaktionen von Seiten/Firmen (kein Personenprofil), z. B. die Firmenseite selbst:
+  // Reaktions-Zeile, darunter ein Name, danach keine Profilzeile.
+  function weitere(text) {
+    var z = String(text || "").split(/\r?\n/).map(function (s) { return s.replace(/\s+/g, " ").trim(); });
+    var namen = {};
+    for (var i = 0; i + 1 < z.length; i++) {
+      var n = z[i + 1], danach = z[i + 2] || "";
+      if (!art(z[i]) || !n || art(n) || profilName(n) || /^[·•\d]/.test(n)) continue;
+      if (profilName(danach) || (danach && !art(danach))) continue;
+      namen[n.toLowerCase()] = true;
+    }
+    return Object.keys(namen).length;
+  }
+
   var ARTNAME = { like: "Gefällt mir", celebrate: "Applaus", support: "Unterstützung", love: "Liebe", insightful: "Interessant", funny: "Witzig", reaktion: "Reaktion" };
   var KANAL = { firmenseite: "Firmenseite", daniel: "Daniel" };
 
   if (typeof window === "undefined" || !window.cockpit) {
-    if (typeof module !== "undefined") module.exports = { erkenne: erkenne };
+    if (typeof module !== "undefined") module.exports = { erkenne: erkenne, weitere: weitere };
     return;
   }
 
   /* ---------- Modul ---------- */
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var Z = { daten: null, filter: "mehrfach", beitrag: "neu", kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], meldung: "", suche: null };
+  var Z = { daten: null, filter: "mehrfach", beitrag: null, kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], weitere: 0, meldung: "", suche: null, alleBeitraege: false };
   var aktiv = false;
 
   function zahl(n) { return n == null ? "–" : Number(n).toLocaleString("de-DE"); }
@@ -62,38 +76,58 @@
     return api("linkedin", {}).then(function (d) {
       Z.daten = d;
       var offen = d.personen.filter(function (p) { return p.reaktionen > 1 && !p.kontakt && !p.ignoriert; }).length;
-      var el = document.querySelector('[data-zahl="linkedin"]'); if (el) el.textContent = offen || "";
+      var el = document.querySelector('[data-zahl="linkedin"]'); if (el) el.textContent = (offen + nachtragen(d).length) || "";
       if (aktiv) zeichnen();
     }).catch(function (e) { if (aktiv) wurzel.innerHTML = '<div class="karte leer">Fehler: ' + esc(e.message) + "</div>"; });
   }
 
+  // Beiträge, bei denen laut Buffer Reaktionen fehlen (nur beobachtete: schon erfasst oder jünger als 30 Tage)
+  function nachtragen(d) { return d.beitraege.filter(function (b) { return b.beobachtet && b.fehlen > 0; }); }
+  function wann(d) { return d ? new Date(d).toLocaleString("de-DE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "–"; }
+
   function zeichnen() {
-    var d = Z.daten;
+    var d = Z.daten, offen = nachtragen(d);
     var mehrfach = d.personen.filter(function (p) { return p.reaktionen > 1 && !p.ignoriert; }).length;
     var mitKontakt = d.personen.filter(function (p) { return p.kontakt && !p.ignoriert; }).length;
     wurzel.innerHTML =
       '<div class="kopf"><div><h1>LinkedIn</h1><p class="leise">Wer auf Beiträge der Firmenseite und von Daniel reagiert · ' +
         zahl(d.beitraege.length) + " Beiträge · " + zahl(d.personen.filter(function (p) { return !p.ignoriert; }).length) + " Personen · " +
         zahl(mehrfach) + " mehrfach · " + zahl(mitKontakt) + " mit Kontakt</p></div></div>" +
+      '<div class="statusleiste">' + (d.import ? (d.import.fehler
+          ? '<span class="status status--fehler" title="' + esc(d.import.fehler) + '"><i></i>Buffer: letzter Abruf ' + wann(d.import.gestartet) + " mit Fehler</span>"
+          : '<span class="status status--ok"><i></i>Buffer: Abruf ' + wann(d.import.gestartet) + " · Zahlen von Buffer vom " + wann(d.buffer && d.buffer.stand) + "</span>")
+        : '<span class="status status--aus"><i></i>Buffer: noch kein Abruf</span>') + "</div>" +
+      (offen.length ? '<section class="karte panel li-nachtragen"><div class="panel-kopf"><h2>Nachtragen</h2><span class="leise">laut Buffer neue Reaktionen, die noch nicht erfasst sind</span></div><ul class="absender">' +
+        offen.map(function (b) {
+          return '<li class="absender-z"><div class="absender-wer"><b>' + esc(b.titel) + '</b><small class="leise">' + KANAL[b.kanal] + " · " + tag(b.veroeffentlicht) +
+            " · " + zahl(b.laut_buffer) + " Reaktionen laut Buffer, " + zahl(b.erfasst + b.weitere) + " erfasst</small></div>" +
+            '<div class="knoepfe"><span class="pille pille--verloren">' + b.fehlen + (b.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" +
+            (b.url ? '<a class="knopf" href="' + esc(b.url) + '" target="_blank" rel="noopener">In LinkedIn öffnen</a>' : "") +
+            '<button type="button" class="knopf knopf--primaer" data-li-nachtragen="' + b.beitrag_id + '">Liste einfügen</button></div></li>';
+        }).join("") + "</ul></section>" : "") +
       '<section class="karte panel" data-li-form>' + formular() + "</section>" +
       '<section class="karte panel"><div class="panel-kopf"><h2>Personen</h2><div class="seg" role="group" aria-label="Filter">' +
         [["mehrfach", "Mehrfach"], ["alle", "Alle"], ["offen", "Ohne Kontakt"], ["ignoriert", "Ignoriert"]].map(function (f) {
           return '<button type="button" data-li-filter="' + f[0] + '" aria-pressed="' + (Z.filter === f[0]) + '">' + f[1] + "</button>";
         }).join("") + "</div></div>" + personen() + "</section>" +
-      '<section class="karte panel"><div class="panel-kopf"><h2>Beiträge</h2><span class="leise">„laut Buffer“ folgt, sobald Buffer angebunden ist</span></div>' +
+      '<section class="karte panel"><div class="panel-kopf"><h2>Beiträge</h2><span class="leise">Zahlen aus Buffer, täglich aktualisiert</span></div>' +
         beitraege() + "</section>";
   }
 
   /* ---------- Einfügen ---------- */
   function formular() {
-    var d = Z.daten, neu = Z.beitrag === "neu";
+    var d = Z.daten;
+    if (!Z.beitrag) {   // Vorauswahl: zuerst, was nachzutragen ist, sonst der neueste beobachtete Beitrag
+      var vor = nachtragen(d)[0] || d.beitraege.filter(function (b) { return b.beobachtet && b.aus_buffer; })[0];
+      Z.beitrag = vor ? vor.beitrag_id : "neu";
+    }
+    var neu = Z.beitrag === "neu";
     return '<div class="panel-kopf"><h2>Reaktionen einfügen</h2><span class="leise">Liste aus LinkedIn kopieren und hier einfügen</span></div>' +
       '<div class="li-form">' +
-        '<label class="feld">Beitrag<select data-li-beitrag><option value="neu"' + (neu ? " selected" : "") + ">Neuer Beitrag …</option>" +
-          d.beitraege.map(function (b) {
-            return '<option value="' + b.beitrag_id + '"' + (Z.beitrag === b.beitrag_id ? " selected" : "") + ">" +
-              esc((b.veroeffentlicht ? tag(b.veroeffentlicht) + " · " : "") + KANAL[b.kanal] + " · " + b.titel) + "</option>";
-          }).join("") + "</select></label>" +
+        '<label class="feld">Beitrag<select data-li-beitrag>' +
+          optionen(d.beitraege.filter(function (b) { return b.beobachtet; }), "Letzte 30 Tage und schon erfasste") +
+          optionen(d.beitraege.filter(function (b) { return !b.beobachtet; }), "Ältere Beiträge") +
+          '<option value="neu"' + (neu ? " selected" : "") + ">Beitrag, der nicht über Buffer lief …</option></select></label>" +
         (neu
           ? '<div class="feld">Von<div class="seg" role="group" aria-label="Kanal">' +
               ["firmenseite", "daniel"].map(function (k) { return '<button type="button" data-li-kanal="' + k + '" aria-pressed="' + (Z.kanal === k) + '">' + KANAL[k] + "</button>"; }).join("") +
@@ -107,6 +141,16 @@
       '<div data-li-vorschau>' + vorschau() + "</div>";
   }
 
+  function optionen(l, gruppe) {
+    if (!l.length) return "";
+    return '<optgroup label="' + esc(gruppe) + '">' + l.map(function (b) {
+      return '<option value="' + b.beitrag_id + '"' + (Z.beitrag === b.beitrag_id ? " selected" : "") + ">" +
+        esc((b.veroeffentlicht ? tag(b.veroeffentlicht) + " · " : "") + KANAL[b.kanal] + " · " + b.titel +
+            (b.laut_buffer != null ? " (" + b.laut_buffer + " Reaktionen)" : "")) + "</option>";
+    }).join("") + "</optgroup>";
+  }
+  function gewaehlt() { var id = Z.beitrag; return (Z.daten ? Z.daten.beitraege : []).filter(function (b) { return b.beitrag_id === id; })[0]; }
+
   function vorschau() {
     var e = Z.erkannt, bekannt = {};
     (Z.daten ? Z.daten.personen : []).forEach(function (p) { bekannt[p.name.toLowerCase()] = p; });
@@ -114,7 +158,8 @@
     var fehlt = Z.beitrag === "neu" && !Z.titel.trim();
     var info = !Z.text.trim() ? (Z.meldung ? "" : '<span class="leise">Noch nichts eingefügt.</span>')
       : !e.length ? '<span class="li-warnung">Keine Personen erkannt – bitte die Reaktionsliste kopieren (Fenster „Reaktionen“, nicht den Beitrag).</span>'
-      : "<b>" + e.length + " Personen erkannt</b> · " + neu + " neu · " + (e.length - neu) + " schon bekannt";
+      : "<b>" + e.length + " Personen erkannt</b>" + (Z.weitere ? " + " + Z.weitere + (Z.weitere === 1 ? " Seite" : " Seiten") : "") +
+        " · " + neu + " neu · " + (e.length - neu) + " schon bekannt" + abgleich(e.length + Z.weitere);
     return '<div class="li-vorschau">' +
       '<div class="li-info">' + info + (Z.meldung ? ' <span class="li-ok">' + esc(Z.meldung) + "</span>" : "") + "</div>" +
       '<button type="button" class="knopf knopf--primaer" data-li-speichern' + (!e.length || fehlt ? " disabled" : "") + ">" + (fehlt && e.length ? "Titel fehlt" : "Speichern") + "</button></div>" +
@@ -123,17 +168,23 @@
         return '<li class="pille' + (b && b.kontakt ? " pille--gut" : "") + '" title="' + esc(ARTNAME[p.art] + (p.position ? " · " + p.position : "")) + '">' + esc(p.name) + (b ? "" : " ·&nbsp;neu") + "</li>";
       }).join("") + (e.length > 60 ? '<li class="pille">+ ' + (e.length - 60) + " weitere</li>" : "") + "</ul>" : "");
   }
+  function abgleich(inListe) {
+    var b = gewaehlt();
+    if (!b || b.laut_buffer == null) return "";
+    if (inListe >= b.laut_buffer) return ' · <span class="li-ok">vollständig (' + b.laut_buffer + " laut Buffer)</span>";
+    return ' · <span class="li-warnung">Buffer meldet ' + b.laut_buffer + " – ganz nach unten gescrollt? Neue Reaktionen seit dem letzten Buffer-Stand zählen erst morgen.</span>";
+  }
   function vorschauNeu() { var v = wurzel.querySelector("[data-li-vorschau]"); if (v) v.innerHTML = vorschau(); }
 
   function speichern(knopf) {
     knopf.disabled = true; knopf.textContent = "Speichert …";
-    var daten = { personen: Z.erkannt };
+    var daten = { personen: Z.erkannt, weitere: Z.weitere };
     if (Z.beitrag === "neu") daten.beitrag = { kanal: Z.kanal, titel: Z.titel.trim(), veroeffentlicht: Z.datum, url: Z.url.trim() };
     else daten.beitrag_id = Z.beitrag;
     api("linkedin_erfassen", daten).then(function (r) {
       Z.meldung = r.neu_reaktionen + " neue Reaktionen gespeichert" + (r.gesamt > r.neu_reaktionen ? ", " + (r.gesamt - r.neu_reaktionen) + " waren schon erfasst" : "") +
         (r.neu_personen ? " · " + r.neu_personen + " neue Personen" : "");
-      Z.beitrag = r.beitrag_id; Z.text = ""; Z.erkannt = []; Z.titel = ""; Z.datum = ""; Z.url = "";
+      Z.beitrag = r.beitrag_id; Z.text = ""; Z.erkannt = []; Z.weitere = 0; Z.titel = ""; Z.datum = ""; Z.url = "";
       return laden();
     }).catch(function (err) { knopf.disabled = false; knopf.textContent = "Fehler: " + err.message; });
   }
@@ -182,19 +233,24 @@
 
   /* ---------- Beiträge ---------- */
   function beitraege() {
-    var l = Z.daten.beitraege;
-    if (!l.length) return '<p class="panel-leer">Noch kein Beitrag erfasst – oben die erste Reaktionsliste einfügen.</p>';
-    return '<div class="tabelle-scroll"><table class="tabelle"><thead><tr><th>Veröffentlicht</th><th>Von</th><th>Beitrag</th><th class="n">Erfasst</th><th class="n">laut Buffer</th><th></th></tr></thead><tbody>' +
+    var alle = Z.daten.beitraege, l = Z.alleBeitraege ? alle : alle.filter(function (b) { return b.beobachtet; });
+    var mehr = alle.length - alle.filter(function (b) { return b.beobachtet; }).length;
+    var umschalten = mehr ? '<p class="li-mehr"><button type="button" class="li-link" data-li-alle>' +
+      (Z.alleBeitraege ? "nur letzte 30 Tage und erfasste zeigen" : "alle " + alle.length + " Beiträge zeigen (" + mehr + " ältere)") + "</button></p>" : "";
+    if (!l.length) return '<p class="panel-leer">Noch keine Beiträge – Buffer-Abruf läuft zweimal täglich.</p>' + umschalten;
+    return '<div class="tabelle-scroll"><table class="tabelle"><thead><tr><th>Veröffentlicht</th><th>Von</th><th>Beitrag</th><th class="n">Impressionen</th><th class="n">Reaktionen</th><th class="n">Kommentare</th><th class="n">erfasst</th><th></th></tr></thead><tbody>' +
       l.map(function (b) {
-        var luecke = b.laut_buffer != null && b.laut_buffer > b.erfasst;
         return "<tr><td>" + tag(b.veroeffentlicht) + "</td><td>" + KANAL[b.kanal] + "</td>" +
           "<td>" + (b.url ? '<a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + esc(b.titel) + "</a>" : esc(b.titel)) +
             (b.zuletzt_erfasst ? '<small class="leise li-position">zuletzt eingefügt ' + tag(b.zuletzt_erfasst) + "</small>" : "") + "</td>" +
-          '<td class="n">' + zahl(b.erfasst) + "</td>" +
-          '<td class="n">' + (b.laut_buffer == null ? '<span class="leise">–</span>' : zahl(b.laut_buffer) + (luecke ? ' <span class="pille pille--verloren">' + (b.laut_buffer - b.erfasst) + " fehlen</span>" : "")) + "</td>" +
-          '<td class="li-aktionen"><button type="button" class="li-link" data-li-nachtragen="' + b.beitrag_id + '">nachtragen</button> · ' +
-            '<button type="button" class="li-link li-link--gefahr" data-li-loeschen="' + b.beitrag_id + '" data-titel="' + esc(b.titel) + '">löschen</button></td></tr>';
-      }).join("") + "</tbody></table></div>";
+          '<td class="n">' + zahl(b.impressionen) + "</td>" +
+          '<td class="n">' + zahl(b.laut_buffer) + "</td>" +
+          '<td class="n">' + zahl(b.kommentare_laut_buffer) + "</td>" +
+          '<td class="n">' + (b.erfasst || b.weitere ? zahl(b.erfasst + b.weitere) : '<span class="leise">–</span>') +
+            (b.beobachtet && b.fehlen > 0 ? ' <span class="pille pille--verloren">' + b.fehlen + (b.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" : "") + "</td>" +
+          '<td class="li-aktionen"><button type="button" class="li-link" data-li-nachtragen="' + b.beitrag_id + '">' + (b.erfasst ? "nachtragen" : "einfügen") + "</button>" +
+            (b.aus_buffer ? "" : ' · <button type="button" class="li-link li-link--gefahr" data-li-loeschen="' + b.beitrag_id + '" data-titel="' + esc(b.titel) + '">löschen</button>') + "</td></tr>";
+      }).join("") + "</tbody></table></div>" + umschalten;
   }
 
   /* ---------- Bedienung ---------- */
@@ -202,7 +258,7 @@
   wurzel.addEventListener("input", function (e) {
     if (!aktiv) return;
     var t = e.target;
-    if (t.hasAttribute("data-li-text")) { Z.text = t.value; Z.erkannt = erkenne(t.value); Z.meldung = ""; vorschauNeu(); }
+    if (t.hasAttribute("data-li-text")) { Z.text = t.value; Z.erkannt = erkenne(t.value); Z.weitere = weitere(t.value); Z.meldung = ""; vorschauNeu(); }
     else if (t.hasAttribute("data-li-feld")) { Z[t.getAttribute("data-li-feld")] = t.value; if (t.getAttribute("data-li-feld") === "titel") vorschauNeu(); }
     else if (t.hasAttribute("data-li-suche")) {
       clearTimeout(suchTimer);
@@ -233,6 +289,7 @@
       return;
     }
     if ((t = e.target.closest("[data-li-speichern]"))) return speichern(t);
+    if (e.target.closest("[data-li-alle]")) { Z.alleBeitraege = !Z.alleBeitraege; return zeichnen(); }
     if ((t = e.target.closest("[data-li-nachtragen]"))) {
       Z.beitrag = t.getAttribute("data-li-nachtragen"); Z.meldung = "";
       var f = wurzel.querySelector("[data-li-form]"); if (f) { f.innerHTML = formular(); f.scrollIntoView({ behavior: "smooth", block: "start" }); var ta = f.querySelector("textarea"); if (ta) ta.focus(); }
@@ -241,7 +298,7 @@
     if ((t = e.target.closest("[data-li-loeschen]"))) {
       if (!confirm("Beitrag „" + t.getAttribute("data-titel") + "“ mit allen erfassten Reaktionen löschen?")) return;
       var id = t.getAttribute("data-li-loeschen");
-      if (Z.beitrag === id) Z.beitrag = "neu";
+      if (Z.beitrag === id) Z.beitrag = null;
       return api("linkedin_beitrag_loeschen", { beitrag_id: id }).then(laden).catch(function (err) { alert("Fehler: " + err.message); });
     }
     if ((t = e.target.closest("[data-li-suchen]"))) {
