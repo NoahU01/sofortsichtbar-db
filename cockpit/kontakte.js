@@ -166,6 +166,19 @@
     else if (e.event_name === "meeting_rescheduled") { titel = "Termin verlegt"; klasse = "tl--termin"; text = p.termin_start ? "neu: " + zeit(p.termin_start) : ""; }
     else if (e.event_name === "meeting_canceled") { titel = "Termin abgesagt"; klasse = "tl--absage"; text = p.absage_grund ? "Grund: " + esc(p.absage_grund) : ""; }
     else if (e.event_name === "meeting_no_show") { titel = p.no_show === false ? "Nicht-Erscheinen zurückgenommen" : "Nicht erschienen"; klasse = "tl--absage"; }
+    else if (e.event_name === "mail_received" || e.event_name === "mail_sent") {
+      var rein = e.event_name === "mail_received";
+      titel = (rein ? "Mail erhalten" : "Mail gesendet") + (p.betreff ? ": " + esc(p.betreff) : "");
+      klasse = "tl--mail";
+      text = (p.vorschau ? '<span class="tl-vorschau">' + esc(p.vorschau) + "</span>" : "") +
+        '<small class="leise">' + (rein ? "an " : "aus ") + esc(p.postfach || "") + (p.anhang ? " · mit Anhang" : "") + "</small>";
+    }
+    else if (e.event_name === "calendar_meeting") {
+      titel = (p.abgesagt ? "Termin abgesagt: " : "Termin: ") + esc(p.betreff || "ohne Titel");
+      klasse = p.abgesagt ? "tl--absage" : "tl--termin";
+      text = esc([p.beginn ? zeit(p.beginn) + (p.ende ? "–" + new Date(p.ende).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "") : "",
+                  p.ort, p.online ? "online" : "", p.postfach ? "Kalender " + p.postfach : ""].filter(Boolean).join(" · "));
+    }
     else if (e.event_name === "call_recorded") { titel = "Call: " + esc(p.titel || "Gespräch"); klasse = "tl--call"; text = p.call_id ? '<a href="#calls/' + esc(p.call_id) + '" data-call="' + esc(p.call_id) + '">Protokoll öffnen</a>' : ""; }
     else { titel = esc(e.event_name); }
     return '<li class="tl ' + klasse + '"><span class="tl-punkt"></span><div class="tl-inhalt"><div class="tl-kopf tl-kopf--fest"><span class="tl-zeit">' + zeit(e.zeit) + "</span><b>" + titel + "</b></div>" +

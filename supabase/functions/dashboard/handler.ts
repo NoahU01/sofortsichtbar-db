@@ -106,6 +106,18 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       const bis = new Date(), von = new Date(bis.getTime() - (tage - 1) * 864e5);
       return ["dashboard_suche", { p_von: von.toISOString().slice(0, 10), p_bis: bis.toISOString().slice(0, 10) }];
     }
+    case "postfach":
+      return ["dashboard_postfach", { p_tage: Math.min(Math.max(Number(b.tage) || 30, 1), 365) }];
+    case "absender_uebernehmen": {
+      const mail = textOderLeer(b.email, 200).trim();
+      if (!mail.includes("@")) throw fehler("E-Mail fehlt");
+      return ["dashboard_absender_uebernehmen", { p_email: mail, p_name: textOderLeer(b.name, 200) }];
+    }
+    case "absender_ignorieren": {
+      const mail = textOderLeer(b.email, 200).trim();
+      if (!mail.includes("@")) throw fehler("E-Mail fehlt");
+      return ["dashboard_absender_ignorieren", { p_email: mail }];
+    }
     case "kontakte_liste":
       return ["dashboard_kontakte_liste", { p_suche: textOderLeer(b.suche, 100) }];
     case "kontakt": {

@@ -81,7 +81,7 @@
   function oeffne(name, arg, ohneHash) {
     if (!window.cockpit.module[name]) { name = "website"; arg = null; }
     document.querySelectorAll("[data-nav]").forEach(function (b) { b.setAttribute("aria-current", String(b.getAttribute("data-nav") === name)); });
-    if (!ohneHash) history.replaceState(null, "", "#" + name + (arg ? "/" + arg : ""));
+    if (!ohneHash && location.hash !== "#" + name + (arg ? "/" + arg : "")) history.pushState(null, "", "#" + name + (arg ? "/" + arg : ""));
     var M = window.cockpit.module;
     Object.keys(M).forEach(function (k) { if (k !== name && M[k].stop) M[k].stop(); });
     window.scrollTo(0, 0);
@@ -95,6 +95,8 @@
   document.querySelectorAll("[data-nav]").forEach(function (b) {
     b.addEventListener("click", function () { oeffne(b.getAttribute("data-nav")); });
   });
+  // Adresse von Hand geändert oder Zurück-Taste: Bereich nachziehen
+  window.addEventListener("hashchange", function () { if (!appEl.hidden) ausHash(); });
 
   /* ---------- Tooltip an Diagrammen (alle Bereiche) ---------- */
   var main = $("[data-main]");

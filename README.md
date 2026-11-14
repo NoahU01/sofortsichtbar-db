@@ -37,6 +37,13 @@ Website-Events ohne Kontakt löscht ein täglicher pg_cron-Job nach 24 Monaten
 | Search Console + GA4 | Edge Function `suche-import` (Dienstkonto, täglich 05:30 UTC per pg_cron) → `public.ingest_suche` | `analytics.suchbegriffe`, `analytics.suche_tage`, `analytics.ga4_tage` |
 | Bing Webmaster Tools | dieselbe Function (API-Schlüssel) | wie oben, Suchbegriffe wochenweise |
 
+| Microsoft 365 (Mails, Kalender) | Edge Function `postfach-import` (App-Registrierung, Mail/Kalender per Exchange-RBAC auf @sofortsichtbar.de begrenzt, alle 15 min) → `public.ingest_postfach` | `core.mails`, `core.kalender`, mail_received/mail_sent/calendar_meeting |
+
+Einrichten Microsoft 365: `scripts/postfach-einrichten.sh`. In Entra nur `User.Read.All`
+(Anwendung) vergeben – Mail.Read/Calendars.Read NICHT in Entra, sondern per
+`New-ManagementRoleAssignment` mit Bereich `sofortsichtbar-postfaecher`, sonst gilt der
+Zugriff für alle Postfächer des Mandanten.
+
 Einrichten der Suchquellen: `scripts/suche-einrichten.sh <dienstkonto.json>` (setzt
 Secrets, Vault-Eintrag, erster Abruf). Jeder Abruf steht in `analytics.import_laeufe`.
 
