@@ -100,7 +100,8 @@
 
   /* ---------- Modul ---------- */
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var Z = { daten: null, filter: "mehrfach", beitrag: null, kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], weitere: 0, meldung: "", suche: null, alleBeitraege: false, fText: "", fErkannt: null, fMeldung: "", ausgeblendetOffen: false };
+  var Z = { daten: null, filter: "mehrfach", beitrag: null, kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], weitere: 0, meldung: "", suche: null, alleBeitraege: false, fText: "", fErkannt: null, fMeldung: "", ausgeblendetOffen: false, sicht: "alle" };
+  try { var gemerkt = localStorage.getItem("cockpit.linkedin.sicht"); if (gemerkt === "firmenseite" || gemerkt === "daniel") Z.sicht = gemerkt; } catch (e) { /* ohne Speicher */ }
   var aktiv = false;
 
   function zahl(n) { return n == null ? "–" : Number(n).toLocaleString("de-DE"); }
@@ -112,23 +113,35 @@
     return api("linkedin", {}).then(function (d) {
       Z.daten = d;
       var offen = d.personen.filter(function (p) { return p.reaktionen > 1 && !p.kontakt && !p.ignoriert; }).length;
-      var el = document.querySelector('[data-zahl="linkedin"]'); if (el) el.textContent = (offen + nachtragen(d).length) || "";
+      var el = document.querySelector('[data-zahl="linkedin"]'); if (el) el.textContent = (offen + nachtragen(d.beitraege).length) || "";
       if (aktiv) zeichnen();
     }).catch(function (e) { if (aktiv) wurzel.innerHTML = '<div class="karte leer">Fehler: ' + esc(e.message) + "</div>"; });
   }
 
   // Beiträge, bei denen laut Buffer Reaktionen fehlen (nur beobachtete: schon erfasst oder jünger als 30 Tage)
-  function nachtragen(d) { return d.beitraege.filter(function (b) { return b.beobachtet && b.fehlen > 0; }); }
+  function nachtragen(l) { return l.filter(function (b) { return b.beobachtet && b.fehlen > 0; }); }
+  // Ansicht Alle / Firmenseite / Daniel
+  function B() { return Z.daten.beitraege.filter(function (b) { return Z.sicht === "alle" || b.kanal === Z.sicht; }); }
+  function P() {
+    if (Z.sicht === "alle") return Z.daten.personen;
+    return Z.daten.personen.filter(function (p) { return p[Z.sicht] > 0; })
+      .map(function (p) { var x = {}; for (var k in p) x[k] = p[k]; x.reaktionen = p[Z.sicht]; return x; })
+      .sort(function (a, b) { return b.reaktionen - a.reaktionen || (b.letzte > a.letzte ? 1 : -1); });
+  }
   function wann(d) { return d ? new Date(d).toLocaleString("de-DE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "–"; }
 
   function zeichnen() {
-    var d = Z.daten, offen = nachtragen(d);
-    var mehrfach = d.personen.filter(function (p) { return p.reaktionen > 1 && !p.ignoriert; }).length;
-    var mitKontakt = d.personen.filter(function (p) { return p.kontakt && !p.ignoriert; }).length;
+    var d = Z.daten, offen = nachtragen(B()), pers = P();
+    var mehrfach = pers.filter(function (p) { return p.reaktionen > 1 && !p.ignoriert; }).length;
+    var mitKontakt = pers.filter(function (p) { return p.kontakt && !p.ignoriert; }).length;
     wurzel.innerHTML =
-      '<div class="kopf"><div><h1>LinkedIn</h1><p class="leise">Wer auf Beiträge der Firmenseite und von Daniel reagiert · ' +
-        zahl(d.beitraege.length) + " Beiträge · " + zahl(d.personen.filter(function (p) { return !p.ignoriert; }).length) + " Personen · " +
-        zahl(mehrfach) + " mehrfach · " + zahl(mitKontakt) + " mit Kontakt</p></div></div>" +
+      '<div class="kopf"><div><h1>LinkedIn</h1><p class="leise">' +
+        ({ alle: "Wer auf Beiträge der Firmenseite und von Daniel reagiert", firmenseite: "Wer auf Beiträge der Firmenseite reagiert", daniel: "Wer auf Daniels Beiträge (#sofortsichtbar) reagiert" })[Z.sicht] + " · " +
+        zahl(B().length) + " Beiträge · " + zahl(pers.filter(function (p) { return !p.ignoriert; }).length) + " Personen · " +
+        zahl(mehrfach) + " mehrfach · " + zahl(mitKontakt) + " mit Kontakt</p></div>" +
+        '<div class="seg li-sicht" role="group" aria-label="Ansicht">' + [["alle", "Alle"], ["firmenseite", "Firmenseite"], ["daniel", "Daniel"]].map(function (x) {
+          return '<button type="button" data-li-sicht="' + x[0] + '" aria-pressed="' + (Z.sicht === x[0]) + '">' + x[1] + "</button>";
+        }).join("") + "</div></div>" +
       '<div class="statusleiste">' + (d.import ? (d.import.fehler
           ? '<span class="status status--fehler" title="' + esc(d.import.fehler) + '"><i></i>Buffer: letzter Abruf ' + wann(d.import.gestartet) + " mit Fehler</span>"
           : '<span class="status status--ok"><i></i>Buffer: Abruf ' + wann(d.import.gestartet) + " · Zahlen von Buffer vom " + wann(d.buffer && d.buffer.stand) + "</span>")
@@ -155,15 +168,15 @@
   function formular() {
     var d = Z.daten;
     if (!Z.beitrag) {   // Vorauswahl: zuerst, was nachzutragen ist, sonst der neueste beobachtete Beitrag
-      var vor = nachtragen(d)[0] || d.beitraege.filter(function (b) { return b.beobachtet && b.aus_buffer; })[0];
+      var vor = nachtragen(B())[0] || B().filter(function (b) { return b.beobachtet && b.aus_buffer; })[0];
       Z.beitrag = vor ? vor.beitrag_id : "neu";
     }
     var neu = Z.beitrag === "neu";
     return '<div class="panel-kopf"><h2>Reaktionen einfügen</h2><span class="leise">Liste aus LinkedIn kopieren und hier einfügen</span></div>' +
       '<div class="li-form">' +
         '<label class="feld">Beitrag<select data-li-beitrag>' +
-          optionen(d.beitraege.filter(function (b) { return b.beobachtet; }), "Letzte 30 Tage und schon erfasste") +
-          optionen(d.beitraege.filter(function (b) { return !b.beobachtet; }), "Ältere Beiträge") +
+          optionen(B().filter(function (b) { return b.beobachtet; }), "Letzte 30 Tage und schon erfasste") +
+          optionen(B().filter(function (b) { return !b.beobachtet; }), "Ältere Beiträge") +
           '<option value="neu"' + (neu ? " selected" : "") + ">Beitrag, der nicht über Buffer lief …</option></select></label>" +
         (neu
           ? '<div class="feld">Von<div class="seg" role="group" aria-label="Kanal">' +
@@ -228,7 +241,7 @@
 
   /* ---------- Personen ---------- */
   function personen() {
-    var l = Z.daten.personen.filter(function (p) {
+    var l = P().filter(function (p) {
       if (Z.filter === "ignoriert") return p.ignoriert;
       if (p.ignoriert) return false;
       if (Z.filter === "mehrfach") return p.reaktionen > 1;
@@ -238,7 +251,7 @@
     if (!l.length) return '<p class="panel-leer">' + (Z.filter === "mehrfach" ? "Noch niemand hat auf mehr als einen erfassten Beitrag reagiert." : "Keine Personen in dieser Ansicht.") + "</p>";
     return '<div class="tabelle-scroll"><table class="tabelle li-personen"><thead><tr><th>Person</th><th class="n">Reaktionen</th><th>Zuletzt</th><th>Kontakt</th></tr></thead><tbody>' +
       l.map(function (p) {
-        var aufteilung = [p.firmenseite ? "Firmenseite " + p.firmenseite : "", p.daniel ? "Daniel " + p.daniel : ""].filter(Boolean).join(" · ");
+        var aufteilung = Z.sicht !== "alle" ? "" : [p.firmenseite ? "Firmenseite " + p.firmenseite : "", p.daniel ? "Daniel " + p.daniel : ""].filter(Boolean).join(" · ");
         return "<tr><td><b>" + esc(p.name) + "</b>" + (p.position ? '<small class="li-position">' + esc(p.position) + "</small>" : "") + "</td>" +
           '<td class="n"><b>' + zahl(p.reaktionen) + '</b><small class="leise">' + esc(aufteilung) + "</small></td>" +
           "<td>" + tag(p.letzte) + "</td>" +
@@ -270,7 +283,7 @@
 
   /* ---------- Beiträge ---------- */
   function beitraege() {
-    var alle = Z.daten.beitraege, l = Z.alleBeitraege ? alle : alle.filter(function (b) { return b.beobachtet; });
+    var alle = B(), l = Z.alleBeitraege ? alle : alle.filter(function (b) { return b.beobachtet; });
     var mehr = alle.length - alle.filter(function (b) { return b.beobachtet; }).length;
     var umschalten = mehr ? '<p class="li-mehr"><button type="button" class="li-link" data-li-alle>' +
       (Z.alleBeitraege ? "nur letzte 30 Tage und erfasste zeigen" : "alle " + alle.length + " Beiträge zeigen (" + mehr + " ältere)") + "</button></p>" : "";
@@ -294,7 +307,7 @@
   /* ---------- Ausgeblendete Beiträge (empiria / ohne Kennzeichen) ---------- */
   function ausgeblendet() {
     var a = Z.daten.ausgeblendet;
-    if (!a || !(a.unklar || a.empiria)) return "";
+    if (!a || !(a.unklar || a.empiria) || Z.sicht === "firmenseite") return "";
     var kopf = '<p class="li-mehr li-ausgeblendet">' + zahl(a.unklar) + " Beiträge von Daniel ohne Kennzeichen" +
       (a.empiria ? " und " + zahl(a.empiria) + " mit #empiria" : "") + " sind ausgeblendet und zählen nicht als Signal." +
       (a.unklar ? ' <button type="button" class="li-link" data-li-ausgeblendet>' + (Z.ausgeblendetOffen ? "zuklappen" : "ohne Kennzeichen zeigen und zuordnen") + "</button>" : "") + "</p>";
@@ -359,6 +372,13 @@
   wurzel.addEventListener("click", function (e) {
     if (!aktiv) return;
     var t;
+    if ((t = e.target.closest("[data-li-sicht]"))) {
+      Z.sicht = t.getAttribute("data-li-sicht"); Z.suche = null; Z.meldung = "";
+      try { localStorage.setItem("cockpit.linkedin.sicht", Z.sicht); } catch (err) { /* ohne Speicher */ }
+      if (Z.sicht !== "alle") Z.kanal = Z.sicht;
+      if (Z.beitrag && Z.beitrag !== "neu" && !B().some(function (b) { return b.beitrag_id === Z.beitrag; })) Z.beitrag = null;
+      return zeichnen();
+    }
     if ((t = e.target.closest("[data-li-filter]"))) { Z.filter = t.getAttribute("data-li-filter"); Z.suche = null; return zeichnen(); }
     if ((t = e.target.closest("[data-li-kanal]"))) {
       Z.kanal = t.getAttribute("data-li-kanal");
