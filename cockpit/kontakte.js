@@ -12,7 +12,7 @@
   var HERKUNFT = { "": "–", termin: "Terminbuchung", postfach: "Postfach", call: "Call", website: "Website",
                    linkedin_follower: "LinkedIn-Follower", linkedin_reaktion: "LinkedIn-Reaktion", manuell: "Manuell", import: "Import" };
   var GRUNDLAGE = { "": "– bitte wählen –", einwilligung: "Einwilligung (z. B. Formular, DOI)", bestandskunde: "Bestandskunde" };
-  var FILTER = [["", "Alle Kontakte"], ["newsletter", "Newsletter erlaubt"], ["tag:linkedin_follower", "Tag: LinkedIn-Follower"],
+  var FILTER = [["", "Alle Kontakte"], ["newsletter", "Newsletter erlaubt"], ["ohne_position", "Position fehlt"], ["name_unvollstaendig", "Name unvollständig"], ["tag:linkedin_follower", "Tag: LinkedIn-Follower"],
                 ["herkunft:linkedin_follower", "Herkunft: LinkedIn-Follower"], ["herkunft:linkedin_reaktion", "Herkunft: LinkedIn-Reaktion"],
                 ["herkunft:termin", "Herkunft: Terminbuchung"], ["herkunft:postfach", "Herkunft: Postfach"], ["herkunft:call", "Herkunft: Call"],
                 ["herkunft:website", "Herkunft: Website"]];

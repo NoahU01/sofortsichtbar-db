@@ -120,7 +120,7 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
     }
     case "kontakte_liste": {
       const filter = textOderLeer(b.filter, 60);
-      if (filter && !/^(newsletter|herkunft:[a-z_]+|tag:[\p{L}\p{N}_ -]+)$/u.test(filter)) throw fehler("unbekannter Filter");
+      if (filter && !/^(newsletter|ohne_position|name_unvollstaendig|herkunft:[a-z_]+|tag:[\p{L}\p{N}_ -]+)$/u.test(filter)) throw fehler("unbekannter Filter");
       return ["dashboard_kontakte_liste", { p_suche: textOderLeer(b.suche, 100), p_filter: filter || null }];
     }
     case "kontakt": {
