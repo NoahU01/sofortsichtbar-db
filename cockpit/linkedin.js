@@ -161,7 +161,7 @@
         }).join("") + "</div></div>" + personen() + "</section>" +
       '<section class="karte panel"><div class="panel-kopf"><h2>Beiträge</h2><span class="leise">nur sofort sichtbar: Firmenseite und Daniels Beiträge mit #sofortsichtbar · Zahlen aus Buffer, täglich</span></div>' +
         beitraege() + ausgeblendet() + "</section>" +
-      '<section class="karte panel" data-li-follower>' + followerKarte() + "</section>";
+      (Z.sicht === "daniel" ? "" : '<section class="karte panel" data-li-follower>' + followerKarte() + "</section>");
   }
 
   /* ---------- Einfügen ---------- */
