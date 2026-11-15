@@ -43,10 +43,23 @@ const Q_ORGS = `{ account { organizations { id name } } }`;
 const Q_KANAELE = `query($org: OrganizationId!) { channels(input: { organizationId: $org }) { id name service type externalLink } }`;
 const Q_POSTS = `query($org: OrganizationId!, $nach: String) {
   posts(first: ${SEITE}, after: $nach, input: { organizationId: $org, filter: { status: [sent] } }) {
-    edges { node { id channelId channelService sentAt externalLink text metricsUpdatedAt metrics { type value } } }
+    edges { node { id channelId channelService sentAt externalLink text metricsUpdatedAt metrics { type value } tags { name } } }
     pageInfo { hasNextPage endCursor }
   }
 }`;
+
+/**
+ * Gehört der Beitrag zu sofort sichtbar? Über den VOLLEN Text (der Hashtag
+ * steht meist am Ende, gespeichert werden nur 1.000 Zeichen) und Buffer-Tags.
+ *   #sofortsichtbar oder Buffer-Tag „so.si. …“ → sofortsichtbar
+ *   #empiria                                    → empiria
+ *   sonst                                       → null (unklar)
+ */
+export function kennzeichen(text: string, tags: string[]): "sofortsichtbar" | "empiria" | null {
+  if (/#sofortsichtbar(?![\p{L}\p{N}_])/iu.test(text) || tags.some((t) => /^so\.?\s?si\b/i.test(t.trim()))) return "sofortsichtbar";
+  if (/#empiria(?![\p{L}\p{N}_])/iu.test(text)) return "empiria";
+  return null;
+}
 
 export async function abrufen(d: Abhaengigkeiten) {
   const orgs: { id: string }[] = (await gql(d, Q_ORGS)).account?.organizations ?? [];
@@ -63,7 +76,10 @@ export async function abrufen(d: Abhaengigkeiten) {
         const n = e.node;
         const kennzahlen: Record<string, number> = {};
         for (const m of n.metrics ?? []) if (m && typeof m.value === "number") kennzahlen[m.type] = m.value;
+        const tags: string[] = (n.tags ?? []).map((t: { name?: string }) => String(t?.name ?? "")).filter(Boolean);
+        const text = typeof n.text === "string" ? n.text : "";
         beitraege.push({
+          tags, kennzeichen: kennzeichen(text, tags),
           id: n.id, channel_id: n.channelId, service: n.channelService, gesendet: n.sentAt ?? null,
           link: n.externalLink ?? null, text: typeof n.text === "string" ? n.text.slice(0, 1000) : null,
           kennzahlen, kennzahlen_stand: n.metricsUpdatedAt ?? null,

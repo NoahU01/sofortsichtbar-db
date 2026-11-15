@@ -200,6 +200,13 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       if (was === "zuordnen" && !kontakt) throw fehler("contact_id fehlt");
       return ["dashboard_linkedin_person", { p_person_id: id, p_aktion: was, p_contact_id: kontakt }];
     }
+    case "linkedin_zuordnen": {
+      const id = uuidOderNull(b.beitrag_id);
+      if (!id) throw fehler("beitrag_id fehlt");
+      const z = textOderLeer(b.zugehoerigkeit, 20);
+      if (!["sofortsichtbar", "empiria", "unklar"].includes(z)) throw fehler("unbekannte Zugehörigkeit");
+      return ["dashboard_linkedin_zuordnen", { p_beitrag_id: id, p_zugehoerigkeit: z }];
+    }
     case "linkedin_beitrag_loeschen": {
       const id = uuidOderNull(b.beitrag_id);
       if (!id) throw fehler("beitrag_id fehlt");

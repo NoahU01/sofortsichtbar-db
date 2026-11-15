@@ -100,7 +100,7 @@
 
   /* ---------- Modul ---------- */
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var Z = { daten: null, filter: "mehrfach", beitrag: null, kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], weitere: 0, meldung: "", suche: null, alleBeitraege: false, fText: "", fErkannt: null, fMeldung: "" };
+  var Z = { daten: null, filter: "mehrfach", beitrag: null, kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], weitere: 0, meldung: "", suche: null, alleBeitraege: false, fText: "", fErkannt: null, fMeldung: "", ausgeblendetOffen: false };
   var aktiv = false;
 
   function zahl(n) { return n == null ? "–" : Number(n).toLocaleString("de-DE"); }
@@ -146,8 +146,8 @@
         [["mehrfach", "Mehrfach"], ["alle", "Alle"], ["offen", "Ohne Kontakt"], ["ignoriert", "Ignoriert"]].map(function (f) {
           return '<button type="button" data-li-filter="' + f[0] + '" aria-pressed="' + (Z.filter === f[0]) + '">' + f[1] + "</button>";
         }).join("") + "</div></div>" + personen() + "</section>" +
-      '<section class="karte panel"><div class="panel-kopf"><h2>Beiträge</h2><span class="leise">Zahlen aus Buffer, täglich aktualisiert</span></div>' +
-        beitraege() + "</section>" +
+      '<section class="karte panel"><div class="panel-kopf"><h2>Beiträge</h2><span class="leise">nur sofort sichtbar: Firmenseite und Daniels Beiträge mit #sofortsichtbar · Zahlen aus Buffer, täglich</span></div>' +
+        beitraege() + ausgeblendet() + "</section>" +
       '<section class="karte panel" data-li-follower>' + followerKarte() + "</section>";
   }
 
@@ -286,8 +286,26 @@
           '<td class="n">' + (b.erfasst || b.weitere ? zahl(b.erfasst + b.weitere) : '<span class="leise">–</span>') +
             (b.beobachtet && b.fehlen > 0 ? ' <span class="pille pille--verloren">' + b.fehlen + (b.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" : "") + "</td>" +
           '<td class="li-aktionen"><button type="button" class="li-link" data-li-nachtragen="' + b.beitrag_id + '">' + (b.erfasst ? "nachtragen" : "einfügen") + "</button>" +
+            (b.kanal === "daniel" && b.aus_buffer ? ' · <button type="button" class="li-link" data-li-zuordnen="' + b.beitrag_id + '" data-z="empiria" title="gehört zu empiria – ausblenden">ausblenden</button>' : "") +
             (b.aus_buffer ? "" : ' · <button type="button" class="li-link li-link--gefahr" data-li-loeschen="' + b.beitrag_id + '" data-titel="' + esc(b.titel) + '">löschen</button>') + "</td></tr>";
       }).join("") + "</tbody></table></div>" + umschalten;
+  }
+
+  /* ---------- Ausgeblendete Beiträge (empiria / ohne Kennzeichen) ---------- */
+  function ausgeblendet() {
+    var a = Z.daten.ausgeblendet;
+    if (!a || !(a.unklar || a.empiria)) return "";
+    var kopf = '<p class="li-mehr li-ausgeblendet">' + zahl(a.unklar) + " Beiträge von Daniel ohne Kennzeichen" +
+      (a.empiria ? " und " + zahl(a.empiria) + " mit #empiria" : "") + " sind ausgeblendet und zählen nicht als Signal." +
+      (a.unklar ? ' <button type="button" class="li-link" data-li-ausgeblendet>' + (Z.ausgeblendetOffen ? "zuklappen" : "ohne Kennzeichen zeigen und zuordnen") + "</button>" : "") + "</p>";
+    if (!Z.ausgeblendetOffen || !a.unklar) return kopf;
+    return kopf + '<div class="tabelle-scroll"><table class="tabelle li-unklar"><thead><tr><th>Veröffentlicht</th><th>Beitrag</th><th class="n">Reaktionen</th><th></th></tr></thead><tbody>' +
+      a.beitraege.map(function (b) {
+        return "<tr><td>" + tag(b.veroeffentlicht) + "</td><td>" + (b.url ? '<a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + esc(b.titel) + "</a>" : esc(b.titel)) + "</td>" +
+          '<td class="n">' + zahl(b.laut_buffer) + "</td>" +
+          '<td class="li-aktionen"><button type="button" class="knopf knopf--primaer" data-li-zuordnen="' + b.beitrag_id + '" data-z="sofortsichtbar">sofort sichtbar</button> ' +
+          '<button type="button" class="knopf" data-li-zuordnen="' + b.beitrag_id + '" data-z="empiria">empiria</button></td></tr>';
+      }).join("") + "</tbody></table></div>";
   }
 
   /* ---------- Follower ---------- */
@@ -359,6 +377,14 @@
       }).catch(function (err) { knopf.disabled = false; knopf.textContent = "Fehler: " + err.message; });
     }
     if (e.target.closest("[data-li-alle]")) { Z.alleBeitraege = !Z.alleBeitraege; return zeichnen(); }
+    if (e.target.closest("[data-li-ausgeblendet]")) { Z.ausgeblendetOffen = !Z.ausgeblendetOffen; return zeichnen(); }
+    if ((t = e.target.closest("[data-li-zuordnen]"))) {
+      t.disabled = true;
+      var bid = t.getAttribute("data-li-zuordnen");
+      if (Z.beitrag === bid) Z.beitrag = null;
+      return api("linkedin_zuordnen", { beitrag_id: bid, zugehoerigkeit: t.getAttribute("data-z") }).then(laden)
+        .catch(function (err) { t.disabled = false; t.textContent = "Fehler: " + err.message; });
+    }
     if ((t = e.target.closest("[data-li-nachtragen]"))) {
       Z.beitrag = t.getAttribute("data-li-nachtragen"); Z.meldung = "";
       var f = wurzel.querySelector("[data-li-form]"); if (f) { f.innerHTML = formular(); f.scrollIntoView({ behavior: "smooth", block: "start" }); var ta = f.querySelector("textarea"); if (ta) ta.focus(); }
