@@ -318,3 +318,47 @@ mark { background: var(--treffer); color: inherit; border-radius: 2px; padding: 
 .nl-feld legend { font-size: .8rem; font-weight: 500; color: var(--ink-2); padding: 0 .3rem; }
 .nl-schalter { display: flex; align-items: center; gap: .5rem; font-size: .88rem; }
 .nl-schalter input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+/* Newsletter */
+.nl-raster { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 1rem; align-items: start; }
+.nl-rechts { position: sticky; top: 1rem; }
+@media (max-width: 1100px) { .nl-raster { grid-template-columns: minmax(0, 1fr); } .nl-rechts { position: static; } }
+.nl-links .panel > .feld + .feld { margin-top: .8rem; }
+.nl-werkzeug { display: flex; flex-wrap: wrap; gap: .3rem; margin-bottom: .5rem; }
+.nl-werkzeug button, .nl-werkzeug select { all: unset; box-sizing: border-box; cursor: pointer; padding: .3rem .6rem; border: 1px solid var(--line); border-radius: 6px; font-size: .78rem; background: var(--panel); color: var(--ink); }
+.nl-werkzeug button:hover, .nl-werkzeug select:hover { background: var(--panel-2); }
+.nl-werkzeug button:focus-visible, .nl-werkzeug select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.nl-text { width: 100%; box-sizing: border-box; padding: .7rem .8rem; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); color: var(--ink);
+  font-family: "IBM Plex Mono", monospace; font-size: .82rem; line-height: 1.55; resize: vertical; }
+.nl-text:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.nl-hilfe { margin-top: .6rem; font-size: .8rem; color: var(--ink-2); }
+.nl-hilfe summary { cursor: pointer; color: var(--accent); }
+.nl-hilfe ul { margin: .5rem 0 0; padding-left: 1.1rem; display: grid; gap: .25rem; }
+.nl-hilfe code { font-size: .76rem; background: var(--sunk); padding: 0 .25rem; border-radius: 4px; }
+.nl-listen { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: .5rem; }
+.nl-liste { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .6rem; border: 1px solid var(--line); border-radius: 99px; font-size: .82rem; cursor: pointer; }
+.nl-liste input { accent-color: var(--accent); }
+.nl-liste--leer { opacity: .5; cursor: default; }
+.nl-klein { font-size: .76rem; margin: .3rem 0 0; }
+.nl-schalter { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .5rem; font-size: .88rem; margin: 0 0 .6rem; }
+.nl-schalter input { accent-color: var(--accent); width: 15px; height: 15px; align-self: center; }
+.nl-schalter small { flex-basis: 100%; padding-left: 1.45rem; font-size: .74rem; }
+.nl-aus { color: var(--ink-3); }
+.nl-kampagne { margin: -.2rem 0 .8rem 1.45rem; }
+.nl-test { display: flex; flex-wrap: wrap; gap: .6rem; align-items: flex-end; margin-bottom: .6rem; }
+.nl-test .feld { flex: 1 1 260px; }
+.nl-tests { list-style: none; margin: 0 0 .6rem; padding: 0; font-size: .78rem; display: grid; gap: .2rem; }
+.nl-bestaetigen { margin-top: .9rem; padding: .9rem 1rem; border: 1px solid var(--accent); border-radius: var(--r); background: var(--accent-soft); font-size: .86rem; }
+.nl-bestaetigen p { margin: 0 0 .6rem; }
+.nl-vorschau-karte .panel-kopf { gap: .5rem; }
+.nl-postfach { font-size: .82rem; padding: .6rem .8rem; border: 1px solid var(--line); border-radius: var(--r) var(--r) 0 0; border-bottom: 0; background: var(--panel-2); line-height: 1.5;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nl-rahmen { border: 1px solid var(--line); background: #f3f1f5; overflow: hidden; }
+.nl-rahmen iframe { display: block; width: 100%; height: 72vh; min-height: 520px; border: 0; background: #f3f1f5; margin: 0 auto; }
+.nl-rahmen--mobil iframe { width: 390px; max-width: 100%; }
+.nl-inhalt summary { cursor: pointer; font-weight: 500; }
+.nl-inhalt .nl-rahmen { margin-top: .8rem; border-radius: var(--r); }
+.nl-bestaetigung { margin-top: .9rem; }
+.nl-status { margin: 0; }
+.nl-liste-knopf { margin-top: .4rem; }
+.tabelle td.n + td, .tabelle th.n + th { padding-left: 1.4rem; }

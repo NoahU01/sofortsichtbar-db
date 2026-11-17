@@ -41,6 +41,7 @@ const json = (status: number, daten: unknown, h: Record<string, string>) =>
 const uuidOderNull = (v: unknown) => (typeof v === "string" && UUID.test(v) ? v : null);
 const datumOderNull = (v: unknown) => (typeof v === "string" && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
 const textOderLeer = (v: unknown, max: number) => (typeof v === "string" ? v.slice(0, max) : "");
+const listen = (v: unknown) => (Array.isArray(v) ? v : []).slice(0, 30).map((t) => textOderLeer(t, 60).trim()).filter(Boolean);
 
 /** Aktion → RPC-Aufruf. Wirft bei ungültiger Eingabe einen Error mit .status = 400. */
 function aktion(name: string, b: Record<string, unknown>, email: string): [string, Record<string, unknown>] | null {
@@ -149,6 +150,57 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       const id = uuidOderNull(b.contact_id);
       if (!id) throw fehler("contact_id fehlt");
       return ["dashboard_kontakt_loeschen", { p_contact_id: id }];
+    }
+    case "newsletter_uebersicht":
+      return ["dashboard_newsletter_uebersicht", {}];
+    case "newsletter": {
+      const id = uuidOderNull(b.newsletter_id);
+      if (!id) throw fehler("newsletter_id fehlt");
+      return ["dashboard_newsletter", { p_newsletter_id: id }];
+    }
+    case "newsletter_zielgruppe":
+      return ["dashboard_newsletter_zielgruppe", { p_listen: listen(b.listen) }];
+    case "newsletter_speichern": {
+      const n = (b.newsletter && typeof b.newsletter === "object" ? b.newsletter : {}) as Record<string, unknown>;
+      return ["dashboard_newsletter_speichern", {
+        p: {
+          newsletter_id: uuidOderNull(n.newsletter_id),
+          titel: textOderLeer(n.titel, 200), betreff: textOderLeer(n.betreff, 300), vorschautext: textOderLeer(n.vorschautext, 300),
+          inhalt: textOderLeer(n.inhalt, 100_000), listen: listen(n.listen),
+          klicks_messen: n.klicks_messen !== false, utm: n.utm !== false, utm_kampagne: textOderLeer(n.utm_kampagne, 100),
+        },
+        p_von: email,
+      }];
+    }
+    case "newsletter_test": {
+      const id = uuidOderNull(b.newsletter_id);
+      if (!id) throw fehler("newsletter_id fehlt");
+      const mails = (Array.isArray(b.emails) ? b.emails : []).slice(0, 5).map((m) => textOderLeer(m, 200).trim()).filter((m) => m.includes("@"));
+      if (!mails.length) throw fehler("Test-Adresse fehlt");
+      return ["dashboard_newsletter_test", { p_newsletter_id: id, p_emails: mails, p_von: email }];
+    }
+    case "newsletter_senden":
+    case "newsletter_abbrechen":
+    case "newsletter_loeschen": {
+      const id = uuidOderNull(b.newsletter_id);
+      if (!id) throw fehler("newsletter_id fehlt");
+      if (name === "newsletter_senden" && b.bestaetigt !== true) throw fehler("Versand nicht bestätigt");
+      return ["dashboard_" + name, name === "newsletter_senden" ? { p_newsletter_id: id, p_von: email } : { p_newsletter_id: id }];
+    }
+    case "newsletter_liste": {
+      if (b.bestaetigt !== true) throw fehler("Bitte bestätigen, dass die Grundlage für alle Personen vorliegt");
+      const grundlage = textOderLeer(b.grundlage, 20);
+      if (grundlage !== "bestandskunde" && grundlage !== "einwilligung") throw fehler("Grundlage fehlt");
+      const liste = textOderLeer(b.liste, 60).trim();
+      if (!liste) throw fehler("Name der Liste fehlt");
+      const roh = Array.isArray(b.personen) ? b.personen : [];
+      if (!roh.length) throw fehler("keine Personen");
+      if (roh.length > 10_000) throw fehler("zu viele Personen auf einmal (max. 10.000)");
+      const personen = roh.filter((x): x is Record<string, unknown> => !!x && typeof x === "object").map((x) => ({
+        email: textOderLeer(x.email, 200).trim(), vorname: textOderLeer(x.vorname, 100), nachname: textOderLeer(x.nachname, 100),
+        name: textOderLeer(x.name, 200), firma: textOderLeer(x.firma, 200),
+      }));
+      return ["dashboard_newsletter_liste", { p: { liste, grundlage, personen }, p_von: email }];
     }
     case "linkedin":
       return ["dashboard_linkedin", {}];

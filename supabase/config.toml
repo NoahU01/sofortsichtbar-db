@@ -440,3 +440,11 @@ verify_jwt = false
 [functions.buffer-import]
 # Aufruf per pg_cron mit Header x-import-secret, kein JWT.
 verify_jwt = false
+
+[functions.newsletter-versand]
+# Aufruf per pg_cron bzw. Amazon SNS mit eigenem Schlüssel, kein JWT.
+verify_jwt = false
+
+[functions.newsletter-ereignisse]
+# Aufruf per pg_cron bzw. Amazon SNS mit eigenem Schlüssel, kein JWT.
+verify_jwt = false
