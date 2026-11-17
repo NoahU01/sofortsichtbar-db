@@ -20,6 +20,8 @@
                     rechtliches: "Rechtliches", karriere: "Karriere", blog: "Blog", referenz: "Referenzen", sonstige: "Sonstige" };
 
   var I = {
+    sprech: '<path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z"/>',
+    auge: '<path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.8"/>',
     web: '<path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM1.5 8h13M8 1.5c1.8 1.8 2.6 4 2.6 6.5S9.8 12.7 8 14.5M8 1.5C6.2 3.3 5.4 5.5 5.4 8s.8 4.7 2.6 6.5"/>',
     termin: '<rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/>',
     absage: '<rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3M6.3 8.8l3.4 3.4M9.7 8.8l-3.4 3.4"/>',
@@ -257,7 +259,7 @@
     var termine = n("meeting_booked"), kal = n("calendar_meeting").filter(function (e) { return !(e.props || {}).abgesagt; });
     var calls = n("call_recorded"), ein = n("mail_received"), aus = n("mail_sent");
     var klicks = n("email_click"), nlEin = n("email_sent"), ab = n("email_unsubscribe");
-    var li = n("linkedin_reaction"), folgt = n("linkedin_follow");
+    var li = n("linkedin_reaction"), folgt = n("linkedin_follow"), liK = n("linkedin_comment"), auf = n("email_open");
     var z = [];
     function zeile(ic, titel, wert, wann) { z.push('<li><span class="k-sig-ic">' + icon(ic) + '</span><span class="k-sig-t">' + titel + '</span><b>' + wert + "</b>" + (wann ? '<small>' + wann + "</small>" : "<small></small>") + "</li>"); }
     if (web.length) zeile("web", "Website-Besuche", Object.keys(sitzungen).length || 1, zuletzt(web));
@@ -269,9 +271,11 @@
     if (ein.length) zeile("mailEin", "Mails erhalten", ein.length, zuletzt(ein));
     if (aus.length) zeile("mailAus", "Mails gesendet", aus.length, zuletzt(aus));
     if (nlEin.length) zeile("news", "Newsletter bekommen", nlEin.length, zuletzt(nlEin));
+    if (auf.length) zeile("auge", "Newsletter geöffnet", auf.length, zuletzt(auf));
     if (klicks.length) zeile("klick", "Newsletter-Klicks", klicks.length, zuletzt(klicks));
     if (ab.length) zeile("weg", "Newsletter abbestellt", "ja", zuletzt(ab));
     if (li.length) zeile("daumen", "LinkedIn-Reaktionen", li.length, zuletzt(li));
+    if (liK.length) zeile("sprech", "LinkedIn-Kommentare", liK.length, zuletzt(liK));
     if (folgt.length) zeile("folgen", "Folgt der Firmenseite", "seit", new Date(folgt[0].zeit).toLocaleDateString("de-DE", { month: "short", year: "numeric" }));
     var stand = k.newsletter_erlaubt ? '<span class="pille pille--gut">Newsletter erlaubt</span>' : '<span class="pille">kein Newsletter</span>';
     return '<section class="karte panel"><div class="panel-kopf"><h2>Signale</h2>' + stand + "</div>" +
@@ -384,6 +388,13 @@
         (p.url ? ' · <a href="' + esc(p.url) + '" target="_blank" rel="noopener">Beitrag öffnen</a>' : "") +
         ' <small class="leise">Zeitpunkt = wann die Liste eingefügt wurde</small>';
     }
+    else if (e.event_name === "linkedin_comment") {
+      titel = "LinkedIn: Kommentar zu „" + esc(p.beitrag || "Beitrag") + "“"; klasse = "tl--linkedin";
+      text = (p.text ? '<span class="tl-vorschau">„' + esc(p.text) + "“</span>" : "") +
+        esc((p.kanal === "daniel" ? "Beitrag von Daniel" : "Beitrag der Firmenseite") + (p.veroeffentlicht ? " vom " + new Date(p.veroeffentlicht).toLocaleDateString("de-DE") : "")) +
+        (p.url ? ' · <a href="' + esc(p.url) + '" target="_blank" rel="noopener">Beitrag öffnen</a>' : "");
+    }
+    else if (e.event_name === "email_open") { titel = "Newsletter geöffnet: " + esc(p.betreff || ""); klasse = "tl--news"; ic = "auge"; }
     else if (e.event_name === "email_sent") { titel = "Newsletter: " + esc(p.betreff || ""); klasse = "tl--news"; }
     else if (e.event_name === "email_delivered") { titel = "Newsletter zugestellt"; klasse = "tl--news"; }
     else if (e.event_name === "email_click") { titel = "Newsletter-Link geklickt"; klasse = "tl--klick"; text = p.url ? '<span class="tl-vorschau">' + esc(String(p.url).replace(/[?&]utm_[^&#]*/g, "").replace(/\?$/, "")) + "</span>" : ""; }
@@ -393,7 +404,8 @@
     else { titel = esc(e.event_name); }
     ic = { "tl--termin": "termin", "tl--absage": /^email_(unsub|bounce|compl)/.test(e.event_name) ? (e.event_name === "email_unsubscribe" ? "weg" : "warn") : "absage",
            "tl--mail": e.event_name === "mail_sent" ? "mailAus" : "mailEin", "tl--call": "call",
-           "tl--linkedin": e.event_name === "linkedin_follow" ? "folgen" : "daumen", "tl--news": "news", "tl--klick": "klick" }[klasse] || ic;
+           "tl--linkedin": e.event_name === "linkedin_follow" ? "folgen" : e.event_name === "linkedin_comment" ? "sprech" : "daumen",
+           "tl--news": e.event_name === "email_open" ? "auge" : "news", "tl--klick": "klick" }[klasse] || ic;
     return '<li class="tl ' + klasse + '"><span class="tl-icon">' + icon(ic) + '</span><div class="tl-inhalt"><div class="tl-kopf tl-kopf--fest"><b>' + titel + '</b><span class="tl-zeit">' + (p.nur_monat ? "" : uhr(e.zeit)) + "</span></div>" +
       (text ? '<div class="tl-text">' + text + "</div>" : "") + "</div></li>";
   }

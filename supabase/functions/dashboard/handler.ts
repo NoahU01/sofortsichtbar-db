@@ -246,26 +246,37 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
     }
     case "linkedin_erfassen": {
       const roh = Array.isArray(b.personen) ? b.personen : [];
-      if (roh.length > 5000) throw fehler("zu viele Personen auf einmal (max. 5000)");
+      const rohK = Array.isArray(b.kommentare) ? b.kommentare : [];
+      if (roh.length > 5000 || rohK.length > 2000) throw fehler("zu viele Einträge auf einmal");
+      const typ = (t: unknown) => (t === "seite" ? "seite" : "person");
       const personen = roh
         .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
-        .map((x) => ({ name: textOderLeer(x.name, 200).trim(), position: textOderLeer(x.position, 300).trim(), art: textOderLeer(x.art, 20) }))
+        .map((x) => ({ name: textOderLeer(x.name, 200).trim(), position: textOderLeer(x.position, 300).trim(), art: textOderLeer(x.art, 20), typ: typ(x.typ) }))
+        .filter((x) => x.name);
+      const kommentare = rohK
+        .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+        .map((x) => ({ name: textOderLeer(x.name, 200).trim(), text: textOderLeer(x.text, 5000).trim(), typ: typ(x.typ) }))
         .filter((x) => x.name);
       const id = uuidOderNull(b.beitrag_id);
-      const rb = (b.beitrag && typeof b.beitrag === "object" ? b.beitrag : {}) as Record<string, unknown>;
-      let beitrag: Record<string, unknown> | null = null;
-      if (!id) {
-        const kanal = textOderLeer(rb.kanal, 20);
-        if (kanal !== "firmenseite" && kanal !== "daniel") throw fehler("Kanal fehlt (firmenseite oder daniel)");
-        const titel = textOderLeer(rb.titel, 300).trim();
-        if (!titel) throw fehler("Titel des Beitrags fehlt");
-        const url = textOderLeer(rb.url, 500).trim();
-        if (url && !/^https:\/\/([a-z]+\.)?linkedin\.com\//i.test(url)) throw fehler("Link muss ein LinkedIn-Link sein");
-        const datum = textOderLeer(rb.veroeffentlicht, 10);
-        beitrag = { kanal, titel, url, veroeffentlicht: /^\d{4}-\d{2}-\d{2}$/.test(datum) ? datum : "" };
-      }
+      if (!id) throw fehler("Beitrag fehlt (nur Beiträge aus Buffer)");
       const weitere = Math.min(Math.max(Math.trunc(Number(b.weitere) || 0), 0), 50);
-      return ["dashboard_linkedin_erfassen", { p: { beitrag_id: id, beitrag, personen, weitere }, p_von: email }];
+      return ["dashboard_linkedin_erfassen", { p: { beitrag_id: id, personen, kommentare, weitere }, p_von: email }];
+    }
+    case "ausschluss":
+      return ["dashboard_ausschluss", {}];
+    case "ausschluss_setzen": {
+      const was = textOderLeer(b.was, 20);
+      if (was === "hinzufuegen") {
+        const name = textOderLeer(b.name, 200).trim();
+        if (!name) throw fehler("Name fehlt");
+        return ["dashboard_ausschluss_setzen", { p_aktion: was, p_name: name, p_person_id: null, p_grund: textOderLeer(b.grund, 100).trim() || null, p_typ: b.typ === "seite" ? "seite" : "person" }];
+      }
+      if (was === "entfernen") {
+        const id = uuidOderNull(b.person_id);
+        if (!id) throw fehler("person_id fehlt");
+        return ["dashboard_ausschluss_setzen", { p_aktion: was, p_name: null, p_person_id: id, p_grund: null, p_typ: null }];
+      }
+      throw fehler("unbekannte Aktion");
     }
     case "linkedin_person": {
       const id = uuidOderNull(b.person_id);

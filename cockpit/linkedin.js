@@ -237,16 +237,17 @@
     var l = P().filter(function (p) {
       if (Z.filter === "ignoriert") return p.ignoriert;
       if (p.ignoriert) return false;
-      if (Z.filter === "mehrfach") return p.reaktionen > 1;
+      if (Z.filter === "mehrfach") return p.reaktionen + (p.kommentare || 0) > 1;
       if (Z.filter === "offen") return !p.kontakt;
       return true;
     });
     if (!l.length) return '<p class="panel-leer">' + (Z.filter === "mehrfach" ? "Noch niemand hat auf mehr als einen erfassten Beitrag reagiert." : "Keine Personen in dieser Ansicht.") + "</p>";
-    return '<div class="tabelle-scroll"><table class="tabelle li-personen"><thead><tr><th>Person</th><th class="n">Reaktionen</th><th>Zuletzt</th><th>Kontakt</th></tr></thead><tbody>' +
+    return '<div class="tabelle-scroll"><table class="tabelle li-personen"><thead><tr><th>Person</th><th class="n">Reaktionen</th><th class="n">Kommentare</th><th>Zuletzt</th><th>Kontakt</th></tr></thead><tbody>' +
       l.map(function (p) {
         var aufteilung = Z.sicht !== "alle" ? "" : [p.firmenseite ? "Firmenseite " + p.firmenseite : "", p.daniel ? "Daniel " + p.daniel : ""].filter(Boolean).join(" · ");
-        return "<tr><td><b>" + esc(p.name) + "</b>" + (p.position ? '<small class="li-position">' + esc(p.position) + "</small>" : "") + "</td>" +
+        return "<tr><td><b>" + esc(p.name) + "</b>" + (p.typ === "seite" ? ' <span class="pille">Seite</span>' : "") + (p.position ? '<small class="li-position">' + esc(p.position) + "</small>" : "") + "</td>" +
           '<td class="n"><b>' + zahl(p.reaktionen) + '</b><small class="leise">' + esc(aufteilung) + "</small></td>" +
+          '<td class="n">' + (p.kommentare ? "<b>" + zahl(p.kommentare) + "</b>" : "–") + "</td>" +
           "<td>" + tag(p.letzte) + "</td>" +
           '<td class="li-kontakt" data-li-zelle="' + p.person_id + '">' + kontaktZelle(p) + "</td></tr>";
       }).join("") + "</tbody></table></div>";
@@ -270,7 +271,7 @@
       '<div class="knoepfe">' +
         '<button type="button" class="knopf" data-li-was="kontakt_anlegen" data-person="' + p.person_id + '">Kontakt anlegen</button>' +
         '<button type="button" class="knopf" data-li-suchen="' + p.person_id + '">Zuordnen …</button>' +
-        '<button type="button" class="knopf" data-li-was="ignorieren" data-person="' + p.person_id + '">Ignorieren</button>' +
+        '<button type="button" class="knopf" data-li-was="ignorieren" data-person="' + p.person_id + '" title="auf die Ausschlussliste: wird erfasst, aber nie zugeordnet">Ausschließen</button>' +
       "</div>";
   }
 
@@ -288,7 +289,7 @@
           '<div class="li-b-text"><span class="li-b-meta"><span class="li-kanal li-kanal--' + x.kanal + '">' + KANAL[x.kanal] + "</span>" + tag(x.veroeffentlicht) + "</span>" +
             (x.url ? '<a class="li-b-titel" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.titel) + "</a>" : '<span class="li-b-titel">' + esc(x.titel) + "</span>") + "</div>" +
           '<dl class="li-b-zahlen"><div><dt>Impressionen</dt><dd>' + zahl(x.impressionen) + "</dd></div><div><dt>Reaktionen</dt><dd>" + zahl(x.laut_buffer) + "</dd></div>" +
-            "<div><dt>Kommentare</dt><dd>" + zahl(x.kommentare_laut_buffer) + "</dd></div>" +
+            "<div><dt>Kommentare</dt><dd>" + zahl(x.kommentare_laut_buffer) + (x.kommentare_erfasst ? '<span class="leise"> · ' + zahl(x.kommentare_erfasst) + " erfasst</span>" : "") + "</dd></div>" +
             '<div class="li-b-erfasst"><dt>erfasst</dt><dd>' + zahl(erfasst) + (soll ? '<span class="leise"> / ' + zahl(soll) + "</span>" : "") +
               (soll ? '<span class="li-balken" aria-hidden="true"><i style="width:' + anteil + '%"></i></span>' : "") + "</dd></div></dl>" +
           '<div class="li-b-aktionen">' + (x.beobachtet && x.fehlen > 0 ? '<span class="pille pille--verloren">' + x.fehlen + (x.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" : "") +

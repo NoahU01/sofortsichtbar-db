@@ -3,7 +3,7 @@
 (function () {
   "use strict";
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var aktiv = false, daten = null;
+  var aktiv = false, daten = null, ausschluss = [], meldung = "";
 
   // max: nach wie vielen Stunden ohne Abruf etwas nicht stimmt
   var ABRUFE = [
@@ -34,7 +34,8 @@
   function start() { aktiv = true; wurzel.innerHTML = '<div class="laedt">Lädt …</div>'; laden(); }
   function stop() { aktiv = false; }
   function laden() {
-    return api("datenquellen", {}).then(function (d) { daten = d; if (aktiv) zeichnen(); })
+    return Promise.all([api("datenquellen", {}), api("ausschluss", {}).catch(function () { return []; })])
+      .then(function (x) { daten = x[0]; ausschluss = x[1] || []; if (aktiv) zeichnen(); })
       .catch(function (e) { if (aktiv) wurzel.innerHTML = '<div class="karte leer">Fehler: ' + esc(e.message) + "</div>"; });
   }
 
@@ -81,8 +82,25 @@
       '<section class="karte panel"><div class="panel-kopf"><h2>Datenquellen</h2><span class="leise">' +
         (probleme ? probleme + (probleme === 1 ? " Quelle braucht" : " Quellen brauchen") + " Aufmerksamkeit" : "alles läuft") + "</span></div>" +
         '<ul class="dq-liste">' + zeilen.join("") + "</ul></section>" +
+      ausschlussPanel() +
       '<section class="karte panel"><div class="panel-kopf"><h2>Postfächer</h2><span class="leise">Microsoft 365 · Mails und Kalender</span></div>' +
         postfaecher(d.postfaecher || []) + "</section>";
+  }
+
+  function ausschlussPanel() {
+    return '<section class="karte panel" id="ausschluss"><div class="panel-kopf"><h2>Ausschlussliste LinkedIn</h2>' +
+        '<span class="leise">Team, Bekannte, eigene und fremde Unternehmensseiten: werden erfasst und zählen für die Vollständigkeit, aber nie einem Kontakt zugeordnet</span></div>' +
+      (ausschluss.length ? '<ul class="ax-liste">' + ausschluss.map(function (a) {
+        return '<li><div class="ax-wer"><b>' + esc(a.name) + "</b>" + (a.typ === "seite" ? ' <span class="pille">Seite</span>' : "") +
+            (a.grund ? '<span class="leise">' + esc(a.grund) + "</span>" : "") + "</div>" +
+          '<span class="leise ax-zahl">' + zahl(a.reaktionen) + (a.reaktionen === 1 ? " Reaktion" : " Reaktionen") + (a.kommentare ? " · " + zahl(a.kommentare) + (a.kommentare === 1 ? " Kommentar" : " Kommentare") : "") + "</span>" +
+          '<button type="button" class="li-link" data-ax-weg="' + a.person_id + '" data-name="' + esc(a.name) + '">entfernen</button></li>';
+      }).join("") + "</ul>" : '<p class="panel-leer">Niemand ausgeschlossen.</p>') +
+      '<div class="ax-neu"><label class="feld">Name wie auf LinkedIn<input data-ax-name maxlength="200" placeholder="z. B. Max Mustermann"></label>' +
+        '<label class="feld">Grund (optional)<input data-ax-grund maxlength="100" placeholder="Team, privat bekannt …"></label>' +
+        '<label class="feld">Art<select data-ax-typ><option value="person">Person</option><option value="seite">Unternehmensseite</option></select></label>' +
+        '<button type="button" class="knopf knopf--primaer" data-ax-dazu>Hinzufügen</button></div>' +
+      (meldung ? '<p class="fehler ok">' + esc(meldung) + "</p>" : "") + "</section>";
   }
 
   function postfaecher(l) {
@@ -95,7 +113,23 @@
   }
 
   wurzel.addEventListener("click", function (e) {
-    if (aktiv && e.target.closest("[data-dq-neu]")) { wurzel.innerHTML = '<div class="laedt">Lädt …</div>'; laden(); }
+    if (!aktiv) return;
+    var t;
+    if (e.target.closest("[data-dq-neu]")) { wurzel.innerHTML = '<div class="laedt">Lädt …</div>'; return laden(); }
+    if (e.target.closest("[data-ax-dazu]")) {
+      var n = wurzel.querySelector("[data-ax-name]"), name = (n.value || "").trim();
+      if (!name) return n.focus();
+      return api("ausschluss_setzen", { was: "hinzufuegen", name: name, grund: wurzel.querySelector("[data-ax-grund]").value, typ: wurzel.querySelector("[data-ax-typ]").value })
+        .then(function () { meldung = name + " steht auf der Ausschlussliste."; return laden(); })
+        .catch(function (err) { meldung = "Fehler: " + err.message; zeichnen(); });
+    }
+    if ((t = e.target.closest("[data-ax-weg]"))) {
+      var wer = t.getAttribute("data-name");
+      if (!confirm(wer + " von der Ausschlussliste nehmen? Reaktionen und Kommentare können danach wieder einem Kontakt zugeordnet werden.")) return;
+      return api("ausschluss_setzen", { was: "entfernen", person_id: t.getAttribute("data-ax-weg") })
+        .then(function () { meldung = wer + " ist nicht mehr ausgeschlossen."; return laden(); })
+        .catch(function (err) { meldung = "Fehler: " + err.message; zeichnen(); });
+    }
   });
 
   C.module.einstellungen = { start: start, stop: stop };

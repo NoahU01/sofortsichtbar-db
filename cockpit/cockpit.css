@@ -560,3 +560,11 @@ a.li-b-titel:hover { color: var(--accent); text-decoration: underline; }
 .nl-dyn-menue code { grid-area: c; font-family: "IBM Plex Mono", monospace; font-size: .7rem; color: var(--accent); background: var(--accent-soft); padding: .1rem .35rem; border-radius: 4px; }
 .nl-kacheln { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 560px) { .nl-kacheln { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- Einstellungen: Ausschlussliste ---------- */
+.ax-liste { list-style: none; margin: 0 0 1rem; padding: 0; }
+.ax-liste li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: .3rem 1rem; align-items: center; padding: .6rem 0; border-bottom: 1px solid var(--line-soft); font-size: .86rem; }
+.ax-wer { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .5rem; min-width: 0; }
+.ax-wer .leise, .ax-zahl { font-size: .76rem; }
+.ax-neu { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1.2fr) auto; gap: .6rem; align-items: end; }
+@media (max-width: 760px) { .ax-neu { grid-template-columns: 1fr; } .ax-liste li { grid-template-columns: minmax(0, 1fr) auto; } .ax-zahl { grid-column: 1; } }

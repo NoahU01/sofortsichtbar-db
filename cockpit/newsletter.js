@@ -133,7 +133,7 @@
           "</section>" +
           '<section class="karte panel"><div class="panel-kopf"><h2>Messung</h2></div>' +
             '<label class="nl-schalter"><input type="checkbox" data-f="klicks_messen"' + (n.klicks_messen ? " checked" : "") + "> Klicks pro Person <small class=\"leise\">jeder Klick landet im Verlauf; mit Cookie-Zustimmung auf der Website werden auch die Besuche danach der Person zugeordnet</small></label>" +
-            '<label class="nl-schalter"><input type="checkbox" data-f="oeffnungen_messen"' + (n.oeffnungen_messen !== false ? " checked" : "") + "> Öffnungen <small class=\"leise\" data-oe-hinweis>nur bei Empfängern mit Einwilligung, Bestandskunden bekommen kein Zählpixel</small></label>" +
+            '<label class="nl-schalter"><input type="checkbox" data-f="oeffnungen_messen"' + (n.oeffnungen_messen !== false ? " checked" : "") + "> Öffnungen <small class=\"leise\">Zählpixel in jeder Mail, auch mehrfaches Öffnen wird gezählt</small></label>" +
             '<label class="nl-schalter"><input type="checkbox" data-f="utm"' + (n.utm ? " checked" : "") + "> Website-Besuche über den Newsletter <small class=\"leise\">UTM-Parameter an Links zu sofortsichtbar.de, zählt auch ohne Personenbezug</small></label>" +
             '<label class="feld nl-kampagne"' + (n.utm ? "" : " hidden") + '>Kampagnenname (utm_campaign)<input data-f="utm_kampagne" value="' + esc(n.utm_kampagne || "") + '" placeholder="' + esc(R.slug(n.titel || "newsletter")) + '"></label>' +
 
@@ -206,8 +206,7 @@
     return api("newsletter_zielgruppe", { listen: Z.nl.listen }).then(function (z) {
       Z.zielgruppe = z;
       var e = wurzel.querySelector("[data-zg]"); if (e) e.textContent = zahl(z.anzahl) + " Empfänger";
-      var oe = wurzel.querySelector("[data-oe-hinweis]");
-      if (oe) oe.textContent = "nur bei Empfängern mit Einwilligung (" + zahl(z.mit_einwilligung || 0) + " von " + zahl(z.anzahl) + "), Bestandskunden bekommen kein Zählpixel";
+
       vorschau();
     }).catch(function () {});
   }
@@ -256,8 +255,8 @@
         kachel("Empfänger", zahl(z.empfaenger)) +
         kachel("Versendet", zahl(z.versendet), z.fehler ? zahl(z.fehler) + " mit Fehler" : "") +
         kachel("Zugestellt", zahl(z.zugestellt), z.versendet ? quote(z.zugestellt, z.versendet) + " der versendeten" : "") +
-        kachel("Geöffnet", z.mit_pixel ? quote(z.geoeffnet, z.mit_pixel) : "–", z.mit_pixel ? zahl(z.geoeffnet) + " von " + zahl(z.mit_pixel) + " mit Einwilligung · " + zahl(z.oeffnungen) + " Öffnungen, " + zahl(z.mehrfach) + " mehrfach" +
-          (z.nur_apple ? " · " + zahl(z.nur_apple) + " nur Apple-Vorabruf" : "") : "nur bei Empfängern mit Einwilligung") +
+        kachel("Geöffnet", z.mit_pixel ? quote(z.geoeffnet, z.mit_pixel) : "–", z.mit_pixel ? zahl(z.geoeffnet) + " von " + zahl(z.mit_pixel) + " · " + zahl(z.oeffnungen) + " Öffnungen, " + zahl(z.mehrfach) + " mehrfach" +
+          (z.nur_apple ? " · " + zahl(z.nur_apple) + " nur Apple-Vorabruf" : "") : "Öffnungsmessung war aus") +
         kachel("Klicker", zahl(z.klicker), quote(z.klicker, z.versendet) + " · " + zahl(z.klicks) + " Klicks") +
         kachel("Website-Besuche", zahl((d.website || {}).besuche), ((d.website || {}).seiten ? zahl(d.website.seiten) + " Seiten" + (d.website.sekunden_median != null ? " · Median " + dauer(d.website.sekunden_median) : "") + " · " : "") +
           zahl(z.website_personen) + (z.website_personen === 1 ? " Person" : " Personen") + " erkannt") +
@@ -275,7 +274,7 @@
           return "<tr><td>" + wer + (e.name ? '<small class="leise li-position">' + esc(e.email) + "</small>" : "") + "</td>" +
             '<td><span class="pille' + (e.status === "zugestellt" ? " pille--gut" : /fehler|bounce|beschwerde/.test(e.status) ? " pille--verloren" : "") + '"' + (e.fehler ? ' title="' + esc(e.fehler) + '"' : "") + ">" +
             esc(EMPF[e.status] || e.status) + "</span>" + (e.abgemeldet ? ' <span class="pille pille--verloren">abgemeldet</span>' : "") + "</td>" +
-            '<td class="n">' + (!e.pixel ? '<span class="leise" title="kein Zählpixel (keine Einwilligung)">·</span>' : e.oeffnungen ? "<b>" + zahl(e.oeffnungen) + "×</b>" : e.apple ? '<span class="leise" title="nur Vorabruf von Apple Mail – unsicher">?</span>' : "–") + "</td>" +
+            '<td class="n">' + (!e.pixel ? '<span class="leise" title="ohne Zählpixel verschickt">·</span>' : e.oeffnungen ? "<b>" + zahl(e.oeffnungen) + "×</b>" : e.apple ? '<span class="leise" title="nur Vorabruf von Apple Mail – unsicher">?</span>' : "–") + "</td>" +
             '<td class="n">' + (e.klicks ? "<b>" + zahl(e.klicks) + "</b>" : "–") + '</td><td class="n">' + (e.website_seiten ? zahl(e.website_seiten) + " Seiten" : "–") + "</td><td>" + wann(e.gesendet_am) + "</td></tr>";
         }).join("") + "</tbody></table></div></section>" +
       '<details class="karte panel nl-inhalt"><summary>Inhalt ansehen</summary><div class="nl-rahmen nl-rahmen--desktop"><iframe title="Versendete Mail" data-vorschau sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe></div></details>';
@@ -443,7 +442,7 @@
       b.hidden = false;
       b.innerHTML = '<p><b>An ' + zahl(anz) + " Empfänger senden?</b><br>Betreff: „" + esc(r.betreff) + "“ · Absender Daniel Ströbel · " +
         (Z.nl.klicks_messen ? "Klicks werden gemessen" : "ohne Klickmessung") +
-        (Z.nl.oeffnungen_messen !== false && Z.zielgruppe && Z.zielgruppe.mit_einwilligung ? ", Öffnungen bei " + zahl(Z.zielgruppe.mit_einwilligung) + " mit Einwilligung" : "") + ". Nach dem Senden lässt sich der Newsletter nicht mehr ändern.</p>" +
+        (Z.nl.oeffnungen_messen !== false ? ", Öffnungen werden gemessen" : "") + ". Nach dem Senden lässt sich der Newsletter nicht mehr ändern.</p>" +
         '<label class="nl-schalter"><input type="checkbox" data-ok> Ich habe die Testmail geprüft (Text, Links, Platzhalter).</label>' +
         '<div class="knoepfe"><button type="button" class="knopf" data-aktion="senden-nein">Abbrechen</button><button type="button" class="knopf knopf--primaer" data-aktion="senden" disabled>Jetzt senden</button></div>';
       b.querySelector("[data-ok]").addEventListener("change", function (ev) { b.querySelector("[data-aktion=senden]").disabled = !ev.target.checked; });
