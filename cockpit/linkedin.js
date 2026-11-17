@@ -100,7 +100,7 @@
 
   /* ---------- Modul ---------- */
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var Z = { daten: null, filter: "mehrfach", beitrag: null, kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], weitere: 0, meldung: "", suche: null, alleBeitraege: false, fText: "", fErkannt: null, fMeldung: "", ausgeblendetOffen: false, sicht: "alle" };
+  var Z = { daten: null, filter: "mehrfach", beitrag: null, kanal: "firmenseite", titel: "", datum: "", url: "", text: "", erkannt: [], weitere: 0, meldung: "", suche: null, alleBeitraege: false, fText: "", fErkannt: null, fMeldung: "", ausgeblendetOffen: false, sicht: "alle", bSicht: "alle" };
   try { var gemerkt = localStorage.getItem("cockpit.linkedin.sicht"); if (gemerkt === "firmenseite" || gemerkt === "daniel") Z.sicht = gemerkt; } catch (e) { /* ohne Speicher */ }
   var aktiv = false;
 
@@ -159,33 +159,27 @@
         [["mehrfach", "Mehrfach"], ["alle", "Alle"], ["offen", "Ohne Kontakt"], ["ignoriert", "Ignoriert"]].map(function (f) {
           return '<button type="button" data-li-filter="' + f[0] + '" aria-pressed="' + (Z.filter === f[0]) + '">' + f[1] + "</button>";
         }).join("") + "</div></div>" + personen() + "</section>" +
-      '<section class="karte panel"><div class="panel-kopf"><h2>Beiträge</h2><span class="leise">nur sofort sichtbar: Firmenseite und Daniels Beiträge mit #sofortsichtbar · Zahlen aus Buffer, täglich</span></div>' +
+      '<section class="karte panel"><div class="panel-kopf li-b-kopf"><h2>Beiträge</h2><span class="leise">aus Buffer, täglich aktualisiert · Daniel nur mit #sofortsichtbar</span>' +
+        (Z.sicht === "alle" ? '<div class="seg" role="group" aria-label="Beiträge filtern">' + [["alle", "Alle"], ["firmenseite", "Firmenseite"], ["daniel", "Daniel"]].map(function (x) {
+          return '<button type="button" data-li-bsicht="' + x[0] + '" aria-pressed="' + (Z.bSicht === x[0]) + '">' + x[1] + "</button>"; }).join("") + "</div>" : "") + "</div>" +
         beitraege() + ausgeblendet() + "</section>" +
       (Z.sicht === "daniel" ? "" : '<section class="karte panel" data-li-follower>' + followerKarte() + "</section>");
   }
 
   /* ---------- Einfügen ---------- */
   function formular() {
-    var d = Z.daten;
-    if (!Z.beitrag) {   // Vorauswahl: zuerst, was nachzutragen ist, sonst der neueste beobachtete Beitrag
-      var vor = nachtragen(B())[0] || B().filter(function (b) { return b.beobachtet && b.aus_buffer; })[0];
-      Z.beitrag = vor ? vor.beitrag_id : "neu";
+    if (!Z.beitrag || Z.beitrag === "neu" || !B().some(function (x) { return x.beitrag_id === Z.beitrag; })) {
+      // Vorauswahl: zuerst, was nachzutragen ist, sonst der neueste beobachtete Beitrag
+      var vor = nachtragen(B())[0] || B().filter(function (x) { return x.beobachtet; })[0] || B()[0];
+      Z.beitrag = vor ? vor.beitrag_id : null;
     }
-    var neu = Z.beitrag === "neu";
+    if (!Z.beitrag) return '<div class="panel-kopf"><h2>Reaktionen einfügen</h2></div><p class="panel-leer">Noch keine Beiträge aus Buffer – der Abruf läuft zweimal täglich.</p>';
     return '<div class="panel-kopf"><h2>Reaktionen einfügen</h2><span class="leise">Liste aus LinkedIn kopieren und hier einfügen</span></div>' +
-      '<div class="li-form">' +
+      '<div class="li-form li-form--eins">' +
         '<label class="feld">Beitrag<select data-li-beitrag>' +
-          optionen(B().filter(function (b) { return b.beobachtet; }), "Letzte 30 Tage und schon erfasste") +
-          optionen(B().filter(function (b) { return !b.beobachtet; }), "Ältere Beiträge") +
-          '<option value="neu"' + (neu ? " selected" : "") + ">Beitrag, der nicht über Buffer lief …</option></select></label>" +
-        (neu
-          ? '<div class="feld">Von<div class="seg" role="group" aria-label="Kanal">' +
-              ["firmenseite", "daniel"].map(function (k) { return '<button type="button" data-li-kanal="' + k + '" aria-pressed="' + (Z.kanal === k) + '">' + KANAL[k] + "</button>"; }).join("") +
-            "</div></div>" +
-            '<label class="feld">Veröffentlicht<input type="date" data-li-feld="datum" value="' + esc(Z.datum) + '"></label>' +
-            '<label class="feld li-breit">Worum geht es? <small>kurzer Titel, z. B. die ersten Worte</small><input data-li-feld="titel" value="' + esc(Z.titel) + '" maxlength="300" placeholder="KI im Maklerbüro"></label>' +
-            '<label class="feld li-breit">Link zum Beitrag <small>optional – „Link zum Beitrag kopieren“ in LinkedIn</small><input data-li-feld="url" value="' + esc(Z.url) + '" placeholder="https://www.linkedin.com/feed/update/…"></label>'
-          : "") +
+          optionen(B().filter(function (x) { return x.beobachtet; }), "Letzte 30 Tage und schon erfasste") +
+          optionen(B().filter(function (x) { return !x.beobachtet; }), "Ältere Beiträge") +
+        "</select></label>" +
       "</div>" +
       '<label class="feld">Reaktionsliste<textarea data-li-text rows="6" placeholder="In LinkedIn: auf die Zahl der Reaktionen klicken → „Alle“ → ganz nach unten scrollen → Cmd+A, Cmd+C → hier Cmd+V">' + esc(Z.text) + "</textarea></label>" +
       '<div data-li-vorschau>' + vorschau() + "</div>";
@@ -205,7 +199,7 @@
     var e = Z.erkannt, bekannt = {};
     (Z.daten ? Z.daten.personen : []).forEach(function (p) { bekannt[p.name.toLowerCase()] = p; });
     var neu = e.filter(function (p) { return !bekannt[p.name.toLowerCase()]; }).length;
-    var fehlt = Z.beitrag === "neu" && !Z.titel.trim();
+    var fehlt = false;
     var info = !Z.text.trim() ? (Z.meldung ? "" : '<span class="leise">Noch nichts eingefügt.</span>')
       : !e.length ? '<span class="li-warnung">Keine Personen erkannt – bitte die Reaktionsliste kopieren (Fenster „Reaktionen“, nicht den Beitrag).</span>'
       : "<b>" + e.length + " Personen erkannt</b>" + (Z.weitere ? " + " + Z.weitere + (Z.weitere === 1 ? " Seite" : " Seiten") : "") +
@@ -229,8 +223,7 @@
   function speichern(knopf) {
     knopf.disabled = true; knopf.textContent = "Speichert …";
     var daten = { personen: Z.erkannt, weitere: Z.weitere };
-    if (Z.beitrag === "neu") daten.beitrag = { kanal: Z.kanal, titel: Z.titel.trim(), veroeffentlicht: Z.datum, url: Z.url.trim() };
-    else daten.beitrag_id = Z.beitrag;
+    daten.beitrag_id = Z.beitrag;
     api("linkedin_erfassen", daten).then(function (r) {
       Z.meldung = r.neu_reaktionen + " neue Reaktionen gespeichert" + (r.gesamt > r.neu_reaktionen ? ", " + (r.gesamt - r.neu_reaktionen) + " waren schon erfasst" : "") +
         (r.neu_personen ? " · " + r.neu_personen + " neue Personen" : "");
@@ -283,25 +276,26 @@
 
   /* ---------- Beiträge ---------- */
   function beitraege() {
-    var alle = B(), l = Z.alleBeitraege ? alle : alle.filter(function (b) { return b.beobachtet; });
-    var mehr = alle.length - alle.filter(function (b) { return b.beobachtet; }).length;
+    var alle = B().filter(function (x) { return Z.sicht !== "alle" || Z.bSicht === "alle" || x.kanal === Z.bSicht; });
+    var l = Z.alleBeitraege ? alle : alle.filter(function (x) { return x.beobachtet; });
+    var mehr = alle.length - alle.filter(function (x) { return x.beobachtet; }).length;
     var umschalten = mehr ? '<p class="li-mehr"><button type="button" class="li-link" data-li-alle>' +
       (Z.alleBeitraege ? "nur letzte 30 Tage und erfasste zeigen" : "alle " + alle.length + " Beiträge zeigen (" + mehr + " ältere)") + "</button></p>" : "";
-    if (!l.length) return '<p class="panel-leer">Noch keine Beiträge – Buffer-Abruf läuft zweimal täglich.</p>' + umschalten;
-    return '<div class="tabelle-scroll"><table class="tabelle"><thead><tr><th>Veröffentlicht</th><th>Von</th><th>Beitrag</th><th class="n">Impressionen</th><th class="n">Reaktionen</th><th class="n">Kommentare</th><th class="n">erfasst</th><th></th></tr></thead><tbody>' +
-      l.map(function (b) {
-        return "<tr><td>" + tag(b.veroeffentlicht) + "</td><td>" + KANAL[b.kanal] + "</td>" +
-          "<td>" + (b.url ? '<a href="' + esc(b.url) + '" target="_blank" rel="noopener">' + esc(b.titel) + "</a>" : esc(b.titel)) +
-            (b.zuletzt_erfasst ? '<small class="leise li-position">zuletzt eingefügt ' + tag(b.zuletzt_erfasst) + "</small>" : "") + "</td>" +
-          '<td class="n">' + zahl(b.impressionen) + "</td>" +
-          '<td class="n">' + zahl(b.laut_buffer) + "</td>" +
-          '<td class="n">' + zahl(b.kommentare_laut_buffer) + "</td>" +
-          '<td class="n">' + (b.erfasst || b.weitere ? zahl(b.erfasst + b.weitere) : '<span class="leise">–</span>') +
-            (b.beobachtet && b.fehlen > 0 ? ' <span class="pille pille--verloren">' + b.fehlen + (b.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" : "") + "</td>" +
-          '<td class="li-aktionen"><button type="button" class="li-link" data-li-nachtragen="' + b.beitrag_id + '">' + (b.erfasst ? "nachtragen" : "einfügen") + "</button>" +
-            (b.kanal === "daniel" && b.aus_buffer ? ' · <button type="button" class="li-link" data-li-zuordnen="' + b.beitrag_id + '" data-z="empiria" title="gehört zu empiria – ausblenden">ausblenden</button>' : "") +
-            (b.aus_buffer ? "" : ' · <button type="button" class="li-link li-link--gefahr" data-li-loeschen="' + b.beitrag_id + '" data-titel="' + esc(b.titel) + '">löschen</button>') + "</td></tr>";
-      }).join("") + "</tbody></table></div>" + umschalten;
+    if (!l.length) return '<p class="panel-leer">Keine Beiträge in dieser Ansicht.</p>' + umschalten;
+    return '<ul class="li-beitraege">' + l.map(function (x) {
+        var erfasst = x.erfasst + x.weitere, soll = x.laut_buffer || 0, anteil = soll ? Math.min(100, Math.round(erfasst / soll * 100)) : 0;
+        return '<li class="li-b">' +
+          '<div class="li-b-text"><span class="li-b-meta"><span class="li-kanal li-kanal--' + x.kanal + '">' + KANAL[x.kanal] + "</span>" + tag(x.veroeffentlicht) + "</span>" +
+            (x.url ? '<a class="li-b-titel" href="' + esc(x.url) + '" target="_blank" rel="noopener">' + esc(x.titel) + "</a>" : '<span class="li-b-titel">' + esc(x.titel) + "</span>") + "</div>" +
+          '<dl class="li-b-zahlen"><div><dt>Impressionen</dt><dd>' + zahl(x.impressionen) + "</dd></div><div><dt>Reaktionen</dt><dd>" + zahl(x.laut_buffer) + "</dd></div>" +
+            "<div><dt>Kommentare</dt><dd>" + zahl(x.kommentare_laut_buffer) + "</dd></div>" +
+            '<div class="li-b-erfasst"><dt>erfasst</dt><dd>' + zahl(erfasst) + (soll ? '<span class="leise"> / ' + zahl(soll) + "</span>" : "") +
+              (soll ? '<span class="li-balken" aria-hidden="true"><i style="width:' + anteil + '%"></i></span>' : "") + "</dd></div></dl>" +
+          '<div class="li-b-aktionen">' + (x.beobachtet && x.fehlen > 0 ? '<span class="pille pille--verloren">' + x.fehlen + (x.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" : "") +
+            '<button type="button" class="knopf knopf--klein" data-li-nachtragen="' + x.beitrag_id + '">' + (x.erfasst ? "Nachtragen" : "Einfügen") + "</button>" +
+            (x.kanal === "daniel" ? '<button type="button" class="li-link" data-li-zuordnen="' + x.beitrag_id + '" data-z="empiria" title="gehört zu empiria – ausblenden">ausblenden</button>' : "") +
+          "</div></li>";
+      }).join("") + "</ul>" + umschalten;
   }
 
   /* ---------- Ausgeblendete Beiträge (empiria / ohne Kennzeichen) ---------- */
@@ -329,11 +323,12 @@
       : "<b>" + e.follower.length + " Follower erkannt</b>" + " · " + e.mitLink + " mit LinkedIn-Link" +
         " · Spalten: " + ["name", "unternehmen", "position", "seit", "link"].filter(function (k) { return e.spalten[k] >= 0; }).map(function (k) {
           return { name: "Name", unternehmen: "Unternehmen", position: "Position", seit: "Folgt seit", link: "Link" }[k]; }).join(", ");
-    return '<div class="panel-kopf"><h2>Follower der Firmenseite</h2><span class="leise">werden Kontakte mit Herkunft und Tag „LinkedIn-Follower“, Newsletter: Nein</span></div>' +
+    return '<details class="li-follower"' + (Z.fText || Z.fMeldung ? " open" : "") + '><summary><b>Follower der Firmenseite</b> <span class="leise">manueller Import – automatisch geht das noch nicht</span></summary>' +
+      '<p class="leise nl-klein">Neue Follower werden Kontakte mit Herkunft und Tag „LinkedIn-Follower“ (Newsletter: Nein). Bekannte Personen werden ergänzt, nicht doppelt angelegt.</p>' +
       '<label class="feld">Follower-Liste <small>in Excel die Tabelle samt Kopfzeile markieren, Cmd+C, hier Cmd+V. Bekannte Personen werden ergänzt, nicht doppelt angelegt.</small>' +
         '<textarea data-li-ftext rows="4" placeholder="Name → Unternehmen → Position → Folgt seit → Link">' + esc(Z.fText) + "</textarea></label>" +
       '<div class="li-vorschau"><div class="li-info">' + info + (Z.fMeldung ? ' <span class="li-ok">' + esc(Z.fMeldung) + "</span>" : "") + "</div>" +
-        '<button type="button" class="knopf knopf--primaer" data-li-fspeichern' + (e && e.follower.length ? "" : " disabled") + ">Follower übernehmen</button></div>";
+        '<button type="button" class="knopf knopf--primaer" data-li-fspeichern' + (e && e.follower.length ? "" : " disabled") + ">Follower übernehmen</button></div></details>";
   }
   function followerNeu() { var k = wurzel.querySelector("[data-li-follower]"); if (k) k.innerHTML = followerKarte(); }
 
@@ -397,6 +392,7 @@
       }).catch(function (err) { knopf.disabled = false; knopf.textContent = "Fehler: " + err.message; });
     }
     if (e.target.closest("[data-li-alle]")) { Z.alleBeitraege = !Z.alleBeitraege; return zeichnen(); }
+    if ((t = e.target.closest("[data-li-bsicht]"))) { Z.bSicht = t.getAttribute("data-li-bsicht"); return zeichnen(); }
     if (e.target.closest("[data-li-ausgeblendet]")) { Z.ausgeblendetOffen = !Z.ausgeblendetOffen; return zeichnen(); }
     if ((t = e.target.closest("[data-li-zuordnen]"))) {
       t.disabled = true;

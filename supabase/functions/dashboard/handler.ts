@@ -134,7 +134,7 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       const id = uuidOderNull(k.contact_id);
       if (!id) throw fehler("contact_id fehlt");
       const p: Record<string, unknown> = { contact_id: id };
-      for (const [f, max] of [["titel", 50], ["vorname", 100], ["nachname", 100], ["telefon", 50], ["position", 300], ["lifecycle_stage", 20],
+      for (const [f, max] of [["email", 200], ["titel", 50], ["vorname", 100], ["nachname", 100], ["telefon", 50], ["position", 300], ["lifecycle_stage", 20],
                               ["zielgruppe", 100], ["paketinteresse", 20], ["lost_grund", 300], ["owner", 50], ["notizen", 20_000],
                               ["herkunft", 30], ["newsletter_grundlage", 20]] as const) {
         p[f] = textOderLeer(k[f], max);
@@ -162,6 +162,11 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       const was = textOderLeer(b.was, 20);
       if (was !== "hinzufuegen" && was !== "entfernen") throw fehler("unbekannte Aktion");
       return ["dashboard_liste_zuordnen", { p_contact_ids: ids, p_liste: liste, p_aktion: was }];
+    }
+    case "tag_anlegen": {
+      const name = textOderLeer(b.name, 60).trim();
+      if (!name) throw fehler("Name fehlt");
+      return ["dashboard_tag_anlegen", { p_name: name }];
     }
     case "liste_loeschen": {
       const liste = textOderLeer(b.liste, 60).trim();
