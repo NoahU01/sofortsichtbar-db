@@ -12,14 +12,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ENV=.env
-REGION=eu-central-1
+REGION="${SES_REGION:-eu-north-1}"
 touch "$ENV"; chmod 600 "$ENV"
 
 read -r -s -p "Zugriffsschlüssel-ID (beginnt mit AKIA, unsichtbar): " KID; echo
 read -r -s -p "Geheimer Zugriffsschlüssel (unsichtbar): " KSEC; echo
 [ -n "$KID" ] && [ -n "$KSEC" ] || { echo "Nicht beides eingegeben."; exit 1; }
 
-echo "Prüfe den Zugang bei Amazon SES (Frankfurt) …"
+echo "Prüfe den Zugang bei Amazon SES ($REGION) …"
 ANTWORT=$(mktemp)
 CODE=$(curl -s -o "$ANTWORT" -w "%{http_code}" \
   --aws-sigv4 "aws:amz:$REGION:ses" --user "$KID:$KSEC" \
