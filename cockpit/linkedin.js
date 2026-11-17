@@ -226,7 +226,9 @@
     daten.beitrag_id = Z.beitrag;
     api("linkedin_erfassen", daten).then(function (r) {
       Z.meldung = r.neu_reaktionen + " neue Reaktionen gespeichert" + (r.gesamt > r.neu_reaktionen ? ", " + (r.gesamt - r.neu_reaktionen) + " waren schon erfasst" : "") +
-        (r.neu_personen ? " · " + r.neu_personen + " neue Personen" : "");
+        (r.neu_personen ? " · " + r.neu_personen + " neue Personen" : "") +
+        (r.kontakte_angelegt ? " · " + r.kontakte_angelegt + " als Kontakt angelegt" : "") + (r.kontakte_zugeordnet ? " · " + r.kontakte_zugeordnet + " bestehenden Kontakten zugeordnet" : "") +
+        (r.mehrdeutig ? " · " + r.mehrdeutig + " mit gleichnamigen Kontakten – bitte unten zuordnen" : "");
       Z.beitrag = r.beitrag_id; Z.text = ""; Z.erkannt = []; Z.weitere = 0; Z.titel = ""; Z.datum = ""; Z.url = "";
       return laden();
     }).catch(function (err) { knopf.disabled = false; knopf.textContent = "Fehler: " + err.message; });
