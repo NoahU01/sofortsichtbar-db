@@ -36,7 +36,7 @@ function gleich(a: string, b: string) {
 }
 
 type Zeile = {
-  empfaenger_id: number; token: string; email: string; test: boolean;
+  empfaenger_id: number; token: string; email: string; test: boolean; pixel?: boolean;
   kontakt: Record<string, string | null>;
   newsletter: { newsletter_id: string; betreff: string; vorschautext: string; inhalt: string; klicks_messen: boolean; utm: boolean; utm_kampagne: string };
 };
@@ -78,7 +78,7 @@ export async function verarbeite(req: Request, d: Abhaengigkeiten): Promise<Resp
         ergebnisse.push({ empfaenger_id: zl.empfaenger_id, ok: false, freigeben: true });
         continue;
       }
-      const r = R.render(zl.newsletter, { ...zl.kontakt, email: zl.email }, { token: zl.token, basis });
+      const r = R.render(zl.newsletter, { ...zl.kontakt, email: zl.email }, { token: zl.token, basis, pixel: zl.pixel === true });
       links[zl.newsletter.newsletter_id] = r.links;
       const t0 = jetzt();
       try {

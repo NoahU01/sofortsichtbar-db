@@ -14,7 +14,8 @@
 
    nlRender.render(newsletter, kontakt, optionen) → { html, text, links, betreff }
      newsletter: { betreff, vorschautext, inhalt, klicks_messen, utm, utm_kampagne }
-     optionen:   { token, basis }   ohne token = Vorschau (Links direkt, Abmelden ohne Ziel) */
+     optionen:   { token, basis, pixel }   ohne token = Vorschau (Links direkt, Abmelden ohne Ziel)
+                 pixel: Zählpixel /o/<token> anhängen (nur Empfänger mit Einwilligung) */
 (function (g) {
   "use strict";
 
@@ -147,7 +148,9 @@
       '<a href="' + esc(abmelden) + '" style="color:#7a7480;text-decoration:underline">Newsletter abbestellen</a>.<br>' +
       "empiria GmbH · Kapellengasse 6 · 74564 Crailsheim · HRB 750146, Amtsgericht Ulm · vertreten durch Daniel Ströbel<br>" +
       '<a href="' + basis + '/impressum" style="color:#7a7480">Impressum</a> · <a href="' + basis + '/datenschutzerklarung" style="color:#7a7480">Datenschutz</a>' +
-      "</td></tr></table></td></tr></table></body></html>";
+      "</td></tr></table></td></tr></table>" +
+      (opt.token && opt.pixel ? '<img src="' + basis + "/o/" + encodeURIComponent(opt.token) + '" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0">' : "") +
+      "</body></html>";
 
     var txt = text.join("\n\n") +
       "\n\n--\nDu bekommst diesen Newsletter von sofort sichtbar. Abbestellen: " + abmelden +

@@ -191,7 +191,7 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
           newsletter_id: uuidOderNull(n.newsletter_id),
           titel: textOderLeer(n.titel, 200), betreff: textOderLeer(n.betreff, 300), vorschautext: textOderLeer(n.vorschautext, 300),
           inhalt: textOderLeer(n.inhalt, 100_000), listen: listen(n.listen),
-          klicks_messen: n.klicks_messen !== false, utm: n.utm !== false, utm_kampagne: textOderLeer(n.utm_kampagne, 100),
+          klicks_messen: n.klicks_messen !== false, oeffnungen_messen: n.oeffnungen_messen !== false, utm: n.utm !== false, utm_kampagne: textOderLeer(n.utm_kampagne, 100),
         },
         p_von: email,
       }];

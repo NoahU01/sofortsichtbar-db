@@ -6,8 +6,11 @@
   "use strict";
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main, R = window.nlRender;
   var Z = { ansicht: "uebersicht", daten: null, nl: null, detail: null, zielgruppe: null, beispielAn: true, breite: "desktop",
-            liste: { text: "", name: "", grundlage: "", bestaetigt: false, erkannt: null, meldung: "" }, test: "", meldung: "" };
-  var aktiv = false, timer = null, zgTimer = null, vorschauTimer = null;
+            liste: { text: "", name: "", grundlage: "", bestaetigt: false, erkannt: null, meldung: "" }, test: "", meldung: "", dynOffen: false };
+  var aktiv = false, timer = null, zgTimer = null, vorschauTimer = null, beobachter = null;
+  var DYN = [["anrede", "Anrede", "Hallo Max / Hallo zusammen"], ["vorname|zusammen", "Vorname", "Ersatz „zusammen“, wenn er fehlt"], ["nachname", "Nachname", ""],
+             ["name", "Vor- und Nachname", ""], ["titel", "Titel", "z. B. Dr."], ["firma", "Firma", ""], ["position", "Position", ""]];
+  var BREITE = { desktop: 720, mobil: 390 };
 
   var STATUS = { entwurf: "Entwurf", wird_gesendet: "Wird gesendet", gesendet: "Gesendet", abgebrochen: "Abgebrochen" };
   var EMPF = { wartet: "wartet", in_arbeit: "wird gesendet", gesendet: "gesendet", zugestellt: "zugestellt", fehler: "Fehler",
@@ -18,6 +21,7 @@
   function zahl(n) { return n == null ? "–" : Number(n).toLocaleString("de-DE"); }
   function quote(a, b) { return b ? Math.round((a / b) * 100) + " %" : "–"; }
   function wann(d) { return d ? new Date(d).toLocaleString("de-DE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "–"; }
+  function dauer(s) { s = Math.round(s || 0); return s < 60 ? s + " s" : Math.floor(s / 60) + " min " + (s % 60 ? (s % 60) + " s" : ""); }
   function kachel(t, w, h) { return '<div class="kachel karte"><span class="flabel">' + esc(t) + '</span><b class="kachel-wert">' + w + "</b>" + (h ? "<small>" + esc(h) + "</small>" : "") + "</div>"; }
   function fehler(e) { if (aktiv) wurzel.innerHTML = '<div class="karte leer">Fehler: ' + esc(e.message) + "</div>"; }
   function konto() { var k = document.querySelector("[data-konto]"); return k ? k.textContent.trim() : ""; }
@@ -33,7 +37,7 @@
   function stop() { aktiv = false; clearInterval(timer); }
 
   function neuerEntwurf() {
-    return { newsletter_id: null, titel: "", betreff: "", vorschautext: "", inhalt: VORLAGE, listen: [], klicks_messen: true, utm: true, utm_kampagne: "", status: "entwurf" };
+    return { newsletter_id: null, titel: "", betreff: "", vorschautext: "", inhalt: VORLAGE, listen: [], klicks_messen: true, oeffnungen_messen: true, utm: true, utm_kampagne: "", status: "entwurf" };
   }
 
   /* ---------- Versandstatus ---------- */
@@ -51,17 +55,18 @@
       Z.daten = d; if (!aktiv) return;
       wurzel.innerHTML =
         '<div class="kopf"><div><h1>Newsletter</h1><p class="leise">Absender Daniel Ströbel · nur an Kontakte mit Newsletter-Erlaubnis</p></div>' +
-          '<div class="knoepfe"><a class="knopf" href="#newsletter/liste">Liste hochladen</a><a class="knopf knopf--primaer" href="#newsletter/neu">Neuer Newsletter</a></div></div>' +
+          '<div class="knoepfe"><a class="knopf" href="#newsletter/liste">Liste hochladen</a><a class="knopf knopf--primaer" href="#newsletter/neu">+ Neu</a></div></div>' +
         '<div class="statusleiste">' + statusZeile(d.status) + "</div>" +
         '<section class="karte panel"><div class="panel-kopf"><h2>Newsletter</h2></div>' +
-          (d.newsletter.length ? '<div class="tabelle-scroll"><table class="tabelle tabelle--klick"><thead><tr><th>Newsletter</th><th>Status</th><th class="n">Empfänger</th><th class="n">Klicker</th><th class="n">Abmeldungen</th><th>Datum</th></tr></thead><tbody>' +
+          (d.newsletter.length ? '<div class="tabelle-scroll"><table class="tabelle tabelle--klick"><thead><tr><th>Newsletter</th><th>Status</th><th class="n">Empfänger</th><th class="n">Geöffnet</th><th class="n">Klicker</th><th class="n">Abmeldungen</th><th>Datum</th></tr></thead><tbody>' +
             d.newsletter.map(function (n) {
               return '<tr data-nl="' + n.newsletter_id + '" tabindex="0"><td><b>' + esc(n.titel) + '</b><small class="leise li-position">' + esc(n.betreff || "ohne Betreff") + "</small></td>" +
                 '<td><span class="pille' + (n.status === "gesendet" ? " pille--gut" : n.status === "wird_gesendet" ? " pille--mql" : "") + '">' + STATUS[n.status] + "</span></td>" +
-                '<td class="n">' + (n.status === "entwurf" ? "–" : zahl(n.empfaenger)) + '</td><td class="n">' + (n.status === "entwurf" ? "–" : zahl(n.klicker) + ' <small class="leise">' + quote(n.klicker, n.versendet) + "</small>") +
+                '<td class="n">' + (n.status === "entwurf" ? "–" : zahl(n.empfaenger)) + '</td><td class="n">' + (n.status === "entwurf" || !n.mit_pixel ? "–" : quote(n.geoeffnet, n.mit_pixel)) +
+                '</td><td class="n">' + (n.status === "entwurf" ? "–" : zahl(n.klicker) + ' <small class="leise">' + quote(n.klicker, n.versendet) + "</small>") +
                 '</td><td class="n">' + (n.status === "entwurf" ? "–" : zahl(n.abmeldungen)) + "</td><td>" + wann(n.gesendet_am || n.freigegeben_am || n.updated_at) + "</td></tr>";
             }).join("") + "</tbody></table></div>"
-            : '<p class="panel-leer">Noch kein Newsletter. Oben rechts „Neuer Newsletter“.</p>') + "</section>" +
+            : '<p class="panel-leer">Noch kein Newsletter. Oben rechts „+ Neu“.</p>') + "</section>" +
         '<section class="karte panel"><div class="panel-kopf"><h2>Empfänger</h2><span class="leise">' + zahl(d.erlaubt_gesamt) + " Kontakte mit Newsletter-Erlaubnis · " +
           zahl(d.gesperrt) + " gesperrt (abgemeldet, unzustellbar, Beschwerde)</span></div>" +
           (d.listen.length ? '<table class="tabelle nl-listen-tabelle"><thead><tr><th>Liste</th><th class="n">Kontakte</th><th class="n">mit Erlaubnis</th></tr></thead><tbody>' +
@@ -95,19 +100,21 @@
       '<div class="nl-raster">' +
         '<div class="nl-links">' +
           '<section class="karte panel"><div class="panel-kopf"><h2>Mail</h2></div>' +
-            '<label class="feld">Interner Titel <small>nur im Cockpit sichtbar</small><input data-f="titel" value="' + esc(n.titel) + '" placeholder="z. B. Newsletter November"></label>' +
+            '<label class="feld">Name<input data-f="titel" value="' + esc(n.titel) + '" placeholder="z. B. Newsletter November"></label>' +
             '<label class="feld">Betreff<input data-f="betreff" value="' + esc(n.betreff) + '" maxlength="300" placeholder="z. B. {{vorname|Hallo}}, drei Ideen für mehr Sichtbarkeit"></label>' +
-            '<label class="feld">Vorschauzeile <small>erscheint im Posteingang hinter dem Betreff</small><input data-f="vorschautext" value="' + esc(n.vorschautext) + '" maxlength="300"></label>' +
+            '<label class="feld">Vorschautext (optional)<input data-f="vorschautext" value="' + esc(n.vorschautext) + '" maxlength="300" placeholder="grauer Text im Posteingang hinter dem Betreff"></label>' +
           "</section>" +
-          '<section class="karte panel"><div class="panel-kopf"><h2>Inhalt</h2><span class="leise">Vorschau rechts aktualisiert sich beim Tippen</span></div>' +
+          '<section class="karte panel"><div class="panel-kopf"><h2>Inhalt</h2></div>' +
             '<div class="nl-werkzeug" role="toolbar" aria-label="Formatieren">' +
               '<button type="button" data-w="h1" title="Überschrift">Überschrift</button><button type="button" data-w="h2" title="Zwischenüberschrift">Zwischen­überschrift</button>' +
               '<button type="button" data-w="fett"><b>F</b></button><button type="button" data-w="kursiv"><i>K</i></button>' +
               '<button type="button" data-w="link">Link</button><button type="button" data-w="button">Button</button>' +
               '<button type="button" data-w="liste">Liste</button><button type="button" data-w="linie">Linie</button>' +
-              '<select data-platzhalter aria-label="Platzhalter einfügen"><option value="">Platzhalter …</option>' +
-                [["anrede", "Anrede (Hallo Max / Hallo zusammen)"], ["vorname|", "Vorname"], ["nachname", "Nachname"], ["name", "Vor- und Nachname"], ["titel", "Titel"], ["firma", "Firma"], ["position", "Position"]]
-                  .map(function (p) { return '<option value="' + p[0] + '">' + esc(p[1]) + "</option>"; }).join("") + "</select>" +
+              '<span class="nl-dyn"><button type="button" class="nl-dyn-knopf" data-dyn aria-haspopup="true" aria-expanded="false">Dynamische Elemente</button>' +
+                '<div class="nl-dyn-menue" data-dyn-menue hidden role="menu">' + DYN.map(function (d) {
+                  return '<button type="button" role="menuitem" data-dyn-feld="' + d[0] + '"><b>' + esc(d[1]) + "</b>" + (d[2] ? '<span class="leise">' + esc(d[2]) + "</span>" : "") +
+                    "<code>{{" + esc(d[0]) + "}}</code></button>";
+                }).join("") + "</div></span>" +
             "</div>" +
             '<textarea class="nl-text" data-f="inhalt" rows="20" spellcheck="true">' + esc(n.inhalt) + "</textarea>" +
             '<details class="nl-hilfe"><summary>So funktioniert die Formatierung</summary><ul>' +
@@ -122,19 +129,22 @@
               return '<label class="nl-liste' + (l.erlaubt ? "" : " nl-liste--leer") + '"><input type="checkbox" data-liste="' + esc(l.liste) + '"' + (n.listen.indexOf(l.liste) >= 0 ? " checked" : "") + (l.erlaubt ? "" : " disabled") + "> " +
                 esc(l.liste) + ' <small class="leise">' + zahl(l.erlaubt) + "</small></label>";
             }).join("") + "</div>" : "") +
-            '<p class="leise nl-klein">Keine Liste gewählt = alle Kontakte mit Newsletter-Erlaubnis. Kontakte ohne Erlaubnis oder auf der Sperrliste bekommen nie etwas.</p>' +
+            '<p class="leise nl-mini">Keine Liste gewählt = alle Kontakte mit Newsletter-Erlaubnis. Kontakte ohne Erlaubnis oder auf der Sperrliste bekommen nie etwas.</p>' +
           "</section>" +
           '<section class="karte panel"><div class="panel-kopf"><h2>Messung</h2></div>' +
-            '<label class="nl-schalter"><input type="checkbox" data-f="klicks_messen"' + (n.klicks_messen ? " checked" : "") + "> Klicks pro Person messen <small class=\"leise\">über sofortsichtbar.de/n/… – Klicks landen als Signal in der Kontakt-Timeline</small></label>" +
-            '<label class="nl-schalter"><input type="checkbox" data-f="utm"' + (n.utm ? " checked" : "") + "> UTM-Parameter an Links zu sofortsichtbar.de <small class=\"leise\">Website-Besuche werden dem Newsletter zugeordnet</small></label>" +
+            '<label class="nl-schalter"><input type="checkbox" data-f="klicks_messen"' + (n.klicks_messen ? " checked" : "") + "> Klicks pro Person <small class=\"leise\">jeder Klick landet im Verlauf; mit Cookie-Zustimmung auf der Website werden auch die Besuche danach der Person zugeordnet</small></label>" +
+            '<label class="nl-schalter"><input type="checkbox" data-f="oeffnungen_messen"' + (n.oeffnungen_messen !== false ? " checked" : "") + "> Öffnungen <small class=\"leise\" data-oe-hinweis>nur bei Empfängern mit Einwilligung, Bestandskunden bekommen kein Zählpixel</small></label>" +
+            '<label class="nl-schalter"><input type="checkbox" data-f="utm"' + (n.utm ? " checked" : "") + "> Website-Besuche über den Newsletter <small class=\"leise\">UTM-Parameter an Links zu sofortsichtbar.de, zählt auch ohne Personenbezug</small></label>" +
             '<label class="feld nl-kampagne"' + (n.utm ? "" : " hidden") + '>Kampagnenname (utm_campaign)<input data-f="utm_kampagne" value="' + esc(n.utm_kampagne || "") + '" placeholder="' + esc(R.slug(n.titel || "newsletter")) + '"></label>' +
-            '<label class="nl-schalter nl-aus"><input type="checkbox" disabled> Öffnungen messen <small class="leise">aus – ein Zählpixel bräuchte eine Einwilligung (§ 25 TDDDG)</small></label>' +
+
           "</section>" +
           '<section class="karte panel"><div class="panel-kopf"><h2>Testen und senden</h2></div>' +
             '<div class="nl-test"><label class="feld">Test an <small>bis zu 5 Adressen, mit Komma getrennt</small><input data-test value="' + esc(Z.test) + '"></label>' +
               '<button type="button" class="knopf" data-aktion="test">Test senden</button></div>' +
             (Z.detail && Z.detail.tests && Z.detail.tests.length ? '<ul class="nl-tests">' + Z.detail.tests.map(function (t) {
-              return "<li>" + esc(t.email) + ' · <span class="' + (t.status === "fehler" ? "li-warnung" : "leise") + '">' + esc(EMPF[t.status] || t.status) + (t.fehler ? ": " + esc(t.fehler.slice(0, 160)) : "") + "</span> · " + wann(t.zeit) + "</li>";
+              var hinweis = t.status === "wartet" && !(Z.daten && Z.daten.status) ? " – Versand noch nicht eingerichtet (SES-Schlüssel fehlt)" : "";
+              return "<li>" + esc(t.email) + ' · <span class="' + (t.status === "fehler" || hinweis ? "li-warnung" : "leise") + '">' + esc(EMPF[t.status] || t.status) + esc(hinweis) + (t.fehler ? ": " + esc(t.fehler.slice(0, 160)) : "") + "</span>" +
+                (t.oeffnungen ? ' · <span class="pille pille--gut">geöffnet</span>' : "") + (t.klicks ? ' · <span class="pille pille--gut">geklickt</span>' : "") + " · " + wann(t.zeit) + "</li>";
             }).join("") + "</ul>" : "") +
             '<p class="fehler" data-meldung>' + esc(Z.meldung) + "</p>" +
             '<div class="knoepfe"><button type="button" class="knopf" data-aktion="speichern">Speichern</button>' +
@@ -147,11 +157,26 @@
           '<div class="seg" role="group" aria-label="Breite"><button type="button" data-breite="desktop" aria-pressed="' + (Z.breite === "desktop") + '">Desktop</button><button type="button" data-breite="mobil" aria-pressed="' + (Z.breite === "mobil") + '">Handy</button></div>' +
           '<div class="seg" role="group" aria-label="Daten"><button type="button" data-bsp="1" aria-pressed="' + Z.beispielAn + '">mit Beispielkontakt</button><button type="button" data-bsp="0" aria-pressed="' + !Z.beispielAn + '">ohne Namen</button></div></div>' +
           '<div class="nl-postfach" data-postfach></div>' +
-          '<div class="nl-rahmen nl-rahmen--' + Z.breite + '"><iframe title="Vorschau der Mail" data-vorschau sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe></div>' +
+          '<div class="nl-rahmen nl-rahmen--' + Z.breite + '" data-rahmen><iframe title="Vorschau der Mail" data-vorschau sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe></div>' +
+          '<p class="leise nl-mini" data-massstab></p>' +
           '<p class="leise nl-klein" data-links></p>' +
         "</section></div>" +
       "</div>";
-    vorschau(); zielgruppe();
+    vorschau(); zielgruppe(); skalieren();
+    if (beobachter) beobachter.disconnect();
+    if (window.ResizeObserver) { beobachter = new ResizeObserver(skalieren); var rr = wurzel.querySelector("[data-rahmen]"); if (rr) beobachter.observe(rr); }
+  }
+
+  // Die Mail wird in echter Breite gerendert (Desktop 720 px wie ein Lesebereich
+  // in Outlook/Gmail, Handy 390 px) und nur verkleinert, wenn der Platz fehlt.
+  function skalieren() {
+    var r = wurzel.querySelector("[data-rahmen]"), f = r && r.querySelector("iframe"); if (!f) return;
+    var b = BREITE[Z.breite], platz = r.clientWidth, m = Math.min(1, platz / b), hoehe = Math.max(520, Math.round(window.innerHeight * 0.72));
+    f.style.width = b + "px"; f.style.height = Math.round(hoehe / m) + "px";
+    f.style.transform = "scale(" + m + ")"; f.style.marginLeft = Math.max(0, Math.round((platz - b * m) / 2)) + "px";
+    r.style.height = hoehe + "px";
+    var t = wurzel.querySelector("[data-massstab]");
+    if (t) t.textContent = (Z.breite === "desktop" ? "Desktop-Lesebereich 720 px, Mail 600 px breit" : "Handy 390 px") + (m < 0.999 ? " · verkleinert auf " + Math.round(m * 100) + " %" : " · Originalgröße");
   }
 
   function felder() {
@@ -172,7 +197,7 @@
     var n = Z.nl, r = R.render(n, beispiel(), {});
     var f = wurzel.querySelector("[data-vorschau]"); if (f) f.srcdoc = r.html;
     var p = wurzel.querySelector("[data-postfach]");
-    if (p) p.innerHTML = '<b>Daniel Ströbel</b> <span class="leise">&lt;daniel.stroebel@sofortsichtbar.de&gt;</span><br><span>' + esc(r.betreff || "(kein Betreff)") + '</span> <span class="leise">– ' + esc(R.platzhalter(n.vorschautext || "", {}) || "") + "</span>";
+    if (p) p.innerHTML = '<b>Daniel Ströbel</b> <span class="leise">&lt;daniel.stroebel@sofortsichtbar.de&gt;</span><br><span>' + esc(r.betreff || "(kein Betreff)") + "</span>" + (n.vorschautext ? ' <span class="leise">– ' + esc(R.platzhalter(n.vorschautext, beispiel())) + "</span>" : "");
     var l = wurzel.querySelector("[data-links]");
     if (l) l.textContent = r.links.length ? r.links.length + (r.links.length === 1 ? " Link" : " Links") + (n.klicks_messen ? " – Klicks werden je Person gemessen" : " – ohne Klickmessung") : "Keine Links im Inhalt.";
   }
@@ -180,7 +205,9 @@
     var el = wurzel.querySelector("[data-zg]"); if (el) el.textContent = "…";
     return api("newsletter_zielgruppe", { listen: Z.nl.listen }).then(function (z) {
       Z.zielgruppe = z;
-      var e = wurzel.querySelector("[data-zg]"); if (e) e.textContent = zahl(z.anzahl) + (z.anzahl === 1 ? " Empfänger" : " Empfänger");
+      var e = wurzel.querySelector("[data-zg]"); if (e) e.textContent = zahl(z.anzahl) + " Empfänger";
+      var oe = wurzel.querySelector("[data-oe-hinweis]");
+      if (oe) oe.textContent = "nur bei Empfängern mit Einwilligung (" + zahl(z.mit_einwilligung || 0) + " von " + zahl(z.anzahl) + "), Bestandskunden bekommen kein Zählpixel";
       vorschau();
     }).catch(function () {});
   }
@@ -225,11 +252,15 @@
         (n.freigegeben_von ? " von " + esc(n.freigegeben_von) : "") + (n.gesendet_am ? " · fertig " + wann(n.gesendet_am) : "") + "</p></div>" +
         (laeuft ? '<button type="button" class="knopf knopf--gefahr" data-aktion="abbrechen">Versand stoppen</button>' : "") + "</div>" +
       (laeuft ? '<div class="statusleiste"><span class="status status--ok"><i></i>' + zahl(z.wartet) + " von " + zahl(z.empfaenger) + " noch in der Warteschlange · aktualisiert sich alle 10 Sekunden</span></div>" : "") +
-      '<div class="kacheln">' +
+      '<div class="kacheln nl-kacheln">' +
         kachel("Empfänger", zahl(z.empfaenger)) +
         kachel("Versendet", zahl(z.versendet), z.fehler ? zahl(z.fehler) + " mit Fehler" : "") +
         kachel("Zugestellt", zahl(z.zugestellt), z.versendet ? quote(z.zugestellt, z.versendet) + " der versendeten" : "") +
+        kachel("Geöffnet", z.mit_pixel ? quote(z.geoeffnet, z.mit_pixel) : "–", z.mit_pixel ? zahl(z.geoeffnet) + " von " + zahl(z.mit_pixel) + " mit Einwilligung · " + zahl(z.oeffnungen) + " Öffnungen, " + zahl(z.mehrfach) + " mehrfach" +
+          (z.nur_apple ? " · " + zahl(z.nur_apple) + " nur Apple-Vorabruf" : "") : "nur bei Empfängern mit Einwilligung") +
         kachel("Klicker", zahl(z.klicker), quote(z.klicker, z.versendet) + " · " + zahl(z.klicks) + " Klicks") +
+        kachel("Website-Besuche", zahl((d.website || {}).besuche), ((d.website || {}).seiten ? zahl(d.website.seiten) + " Seiten" + (d.website.sekunden_median != null ? " · Median " + dauer(d.website.sekunden_median) : "") + " · " : "") +
+          zahl(z.website_personen) + (z.website_personen === 1 ? " Person" : " Personen") + " erkannt") +
         kachel("Abmeldungen", zahl(z.abmeldungen), quote(z.abmeldungen, z.versendet)) +
         kachel("Unzustellbar", zahl(z.bounces), z.beschwerden ? zahl(z.beschwerden) + " Spam-Beschwerden" : "keine Beschwerden") +
       "</div>" +
@@ -237,14 +268,15 @@
         (d.links.length ? '<div class="tabelle-scroll"><table class="tabelle"><thead><tr><th>Ziel</th><th class="n">Personen</th><th class="n">Klicks</th></tr></thead><tbody>' +
           d.links.map(function (l) { return '<tr><td><span class="pfad">' + esc(l.url.replace(/[?&]utm_[^&#]*/g, "").replace(/\?$/, "")) + '</span></td><td class="n">' + zahl(l.personen) + '</td><td class="n">' + zahl(l.klicks) + "</td></tr>"; }).join("") +
           "</tbody></table></div>" : '<p class="panel-leer">Keine Links.</p>') + "</section>" +
-      '<section class="karte panel"><div class="panel-kopf"><h2>Empfänger</h2><span class="leise">wer geklickt hat, steht oben</span></div>' +
-        '<div class="tabelle-scroll"><table class="tabelle"><thead><tr><th>Person</th><th>Status</th><th class="n">Klicks</th><th>Gesendet</th></tr></thead><tbody>' +
+      '<section class="karte panel"><div class="panel-kopf"><h2>Empfänger</h2><span class="leise">sortiert nach Klicks, Öffnungen, Website</span></div>' +
+        '<div class="tabelle-scroll"><table class="tabelle"><thead><tr><th>Person</th><th>Status</th><th class="n">Geöffnet</th><th class="n">Klicks</th><th class="n">Website</th><th>Gesendet</th></tr></thead><tbody>' +
         d.empfaenger.map(function (e) {
           var wer = e.contact_id ? '<a href="#kontakte/' + e.contact_id + '">' + esc(e.name || e.email) + "</a>" : esc(e.email);
           return "<tr><td>" + wer + (e.name ? '<small class="leise li-position">' + esc(e.email) + "</small>" : "") + "</td>" +
             '<td><span class="pille' + (e.status === "zugestellt" ? " pille--gut" : /fehler|bounce|beschwerde/.test(e.status) ? " pille--verloren" : "") + '"' + (e.fehler ? ' title="' + esc(e.fehler) + '"' : "") + ">" +
             esc(EMPF[e.status] || e.status) + "</span>" + (e.abgemeldet ? ' <span class="pille pille--verloren">abgemeldet</span>' : "") + "</td>" +
-            '<td class="n">' + (e.klicks ? "<b>" + zahl(e.klicks) + "</b>" : "–") + "</td><td>" + wann(e.gesendet_am) + "</td></tr>";
+            '<td class="n">' + (!e.pixel ? '<span class="leise" title="kein Zählpixel (keine Einwilligung)">·</span>' : e.oeffnungen ? "<b>" + zahl(e.oeffnungen) + "×</b>" : e.apple ? '<span class="leise" title="nur Vorabruf von Apple Mail – unsicher">?</span>' : "–") + "</td>" +
+            '<td class="n">' + (e.klicks ? "<b>" + zahl(e.klicks) + "</b>" : "–") + '</td><td class="n">' + (e.website_seiten ? zahl(e.website_seiten) + " Seiten" : "–") + "</td><td>" + wann(e.gesendet_am) + "</td></tr>";
         }).join("") + "</tbody></table></div></section>" +
       '<details class="karte panel nl-inhalt"><summary>Inhalt ansehen</summary><div class="nl-rahmen nl-rahmen--desktop"><iframe title="Versendete Mail" data-vorschau sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe></div></details>';
     var f = wurzel.querySelector("[data-vorschau]"); if (f) f.srcdoc = R.render(n, { vorname: "Max", nachname: "Mustermann" }, {}).html;
@@ -356,11 +388,7 @@
     if (Z.ansicht === "editor") {
       if (t.hasAttribute("data-liste")) { felder(); clearTimeout(zgTimer); zgTimer = setTimeout(zielgruppe, 200); }
       if (t.type === "checkbox" && t.hasAttribute("data-f")) { felder(); vorschau(); var k = wurzel.querySelector(".nl-kampagne"); if (k && t.getAttribute("data-f") === "utm") k.hidden = !t.checked; }
-      if (t.hasAttribute("data-platzhalter") && t.value) {
-        var v = t.value; t.value = "";
-        ansEnde();
-        einfuegen("{{" + (v.slice(-1) === "|" ? v + "zusammen" : v) + "}}", "", "");
-      }
+
     }
     if (Z.ansicht === "liste" && t.hasAttribute("data-l")) {
       var f = t.getAttribute("data-l");
@@ -385,7 +413,9 @@
       if (w === "linie") return block("---");
     }
     if ((t = e.target.closest("[data-breite]"))) { Z.breite = t.getAttribute("data-breite"); var rf = wurzel.querySelector(".nl-rahmen"); if (rf) rf.className = "nl-rahmen nl-rahmen--" + Z.breite;
-      wurzel.querySelectorAll("[data-breite]").forEach(function (b) { b.setAttribute("aria-pressed", String(b === t)); }); return; }
+      wurzel.querySelectorAll("[data-breite]").forEach(function (b) { b.setAttribute("aria-pressed", String(b === t)); }); return skalieren(); }
+    if ((t = e.target.closest("[data-dyn-feld]"))) { dynMenue(false); ansEnde(); return einfuegen("{{" + t.getAttribute("data-dyn-feld") + "}}", "", ""); }
+    if (e.target.closest("[data-dyn]")) { var dm = wurzel.querySelector("[data-dyn-menue]"); return dynMenue(dm && dm.hidden); }
     if ((t = e.target.closest("[data-bsp]"))) { Z.beispielAn = t.getAttribute("data-bsp") === "1";
       wurzel.querySelectorAll("[data-bsp]").forEach(function (b) { b.setAttribute("aria-pressed", String(b === t)); }); return vorschau(); }
     if (!(t = e.target.closest("[data-aktion]"))) return;
@@ -412,7 +442,8 @@
       if (!anz) return zeig("Keine Empfänger mit Newsletter-Erlaubnis in dieser Zielgruppe.");
       b.hidden = false;
       b.innerHTML = '<p><b>An ' + zahl(anz) + " Empfänger senden?</b><br>Betreff: „" + esc(r.betreff) + "“ · Absender Daniel Ströbel · " +
-        (Z.nl.klicks_messen ? "Klicks werden gemessen" : "ohne Klickmessung") + ". Nach dem Senden lässt sich der Newsletter nicht mehr ändern.</p>" +
+        (Z.nl.klicks_messen ? "Klicks werden gemessen" : "ohne Klickmessung") +
+        (Z.nl.oeffnungen_messen !== false && Z.zielgruppe && Z.zielgruppe.mit_einwilligung ? ", Öffnungen bei " + zahl(Z.zielgruppe.mit_einwilligung) + " mit Einwilligung" : "") + ". Nach dem Senden lässt sich der Newsletter nicht mehr ändern.</p>" +
         '<label class="nl-schalter"><input type="checkbox" data-ok> Ich habe die Testmail geprüft (Text, Links, Platzhalter).</label>' +
         '<div class="knoepfe"><button type="button" class="knopf" data-aktion="senden-nein">Abbrechen</button><button type="button" class="knopf knopf--primaer" data-aktion="senden" disabled>Jetzt senden</button></div>';
       b.querySelector("[data-ok]").addEventListener("change", function (ev) { b.querySelector("[data-aktion=senden]").disabled = !ev.target.checked; });
@@ -444,7 +475,17 @@
       }).catch(function (err) { t.disabled = false; t.textContent = "Fehler: " + err.message; });
     }
   });
+  function dynMenue(auf) {
+    var m = wurzel.querySelector("[data-dyn-menue]"), k = wurzel.querySelector("[data-dyn]"); if (!m) return;
+    m.hidden = !auf; k.setAttribute("aria-expanded", String(!!auf));
+    if (auf) { var erst = m.querySelector("button"); if (erst) erst.focus(); }
+  }
+  document.addEventListener("click", function (e) {
+    if (aktiv && Z.ansicht === "editor" && !e.target.closest(".nl-dyn")) dynMenue(false);
+  });
+  window.addEventListener("resize", function () { if (aktiv && Z.ansicht === "editor") skalieren(); });
   wurzel.addEventListener("keydown", function (e) {
+    if (aktiv && e.key === "Escape" && e.target.closest && e.target.closest(".nl-dyn")) { dynMenue(false); var dk = wurzel.querySelector("[data-dyn]"); if (dk) dk.focus(); return; }
     if (!aktiv || e.key !== "Enter") return;
     var t = e.target.closest("tr[data-nl]"); if (t) C.oeffne("newsletter", t.getAttribute("data-nl"));
   });
