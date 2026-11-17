@@ -50,7 +50,7 @@ export async function verarbeite(req: Request, d: Abhaengigkeiten): Promise<Resp
   const z: Zugang = { keyId: d.env.SES_ACCESS_KEY_ID, secret: d.env.SES_SECRET_ACCESS_KEY, region: d.env.SES_REGION || "eu-north-1" };
   const von = d.env.NEWSLETTER_VON || "daniel.stroebel@sofortsichtbar.de";
   const vonName = d.env.NEWSLETTER_VON_NAME || "Daniel Ströbel";
-  const basis = (d.env.NEWSLETTER_BASIS || "https://sofortsichtbar.de").replace(/\/+$/, "");
+  const basis = (d.env.NEWSLETTER_BASIS || "https://www.sofortsichtbar.de").replace(/\/+$/, "");
   const jetzt = d.jetzt ?? (() => Date.now());
   const schlafen = d.schlafen ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   const start = jetzt(), budget = d.zeitbudgetMs ?? ZEITBUDGET;

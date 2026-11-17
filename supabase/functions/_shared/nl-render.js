@@ -18,7 +18,7 @@
 (function (g) {
   "use strict";
 
-  var BASIS = "https://sofortsichtbar.de";
+  var BASIS = "https://www.sofortsichtbar.de";
   var LILA = "#8324b9";
   var FELDER = ["vorname", "nachname", "name", "titel", "firma", "position", "email", "anrede"];
 
