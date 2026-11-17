@@ -4,7 +4,7 @@
 (function () {
   "use strict";
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var Z = { liste: [], listen: [], suche: "", filter: "", detail: null, offen: {}, auswahl: {}, menue: null, panel: null, meldung: "" };
+  var Z = { liste: [], listen: [], suche: "", filter: "", detail: null, offen: {}, auswahl: {}, menue: null, panel: null, meldung: "", neu: [], neuOffen: false };
   var aktiv = false;
 
   var STATUS = { lead: "Lead", mql: "MQL", sql: "SQL", kunde: "Kunde", verloren: "Verloren" };
@@ -64,8 +64,9 @@
   /* ---------- Liste ---------- */
   function listeLaden() {
     Z.detail = null;
-    return Promise.all([api("kontakte_liste", { suche: Z.suche, filter: Z.filter }), api("listen", {})]).then(function (x) {
-      var r = x[0]; Z.liste = r; Z.listen = x[1] || [];
+    return Promise.all([api("kontakte_liste", { suche: Z.suche, filter: Z.filter }), api("listen", {}),
+                        api("postfach", { tage: 90 }).catch(function () { return null; })]).then(function (x) {
+      var r = x[0]; Z.liste = r; Z.listen = x[1] || []; Z.neu = x[2] && x[2].unbekannt || [];
       var da = {}; r.forEach(function (k) { da[k.contact_id] = true; });
       Object.keys(Z.auswahl).forEach(function (k) { if (!da[k]) delete Z.auswahl[k]; });
       if (!Z.suche && !Z.filter) { var z = document.querySelector('[data-zahl="kontakte"]'); if (z) z.textContent = r.length || ""; }
@@ -85,6 +86,7 @@
         (liste ? '<button type="button" class="knopf knopf--gefahr" data-k-liste-loeschen>Liste auflösen</button>'
                : '<button type="button" class="knopf" data-k-tags-knopf aria-expanded="' + !!Z.tagsVerwalten + '">Tags verwalten</button>') + "</div>" +
       (Z.tagsVerwalten && !liste ? tagsPanel() : "") +
+      (!liste ? neuBereich() : "") +
       '<div class="leiste k-leiste"><input type="search" class="suche" data-k-suche placeholder="Name, E-Mail, Firma oder Position" value="' + esc(Z.suche) + '">' +
         '<select class="k-filter" data-k-filter aria-label="Filter">' + FILTER.map(function (f) {
           return '<option value="' + f[0] + '"' + (Z.filter === f[0] ? " selected" : "") + ">" + esc(f[1]) + "</option>";
@@ -118,6 +120,21 @@
     if (fokus) { var f = wurzel.querySelector("[data-k-suche]"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }
     var pin = wurzel.querySelector("[data-k-panel] input[data-k-neu]"); if (pin && Z.panel && Z.panel.fokus) { pin.focus(); Z.panel.fokus = false; }
   }
+  /* ---------- Neu aus dem Postfach: externe Absender, die noch kein Kontakt sind ---------- */
+  function wannKurz(d) { return d ? new Date(d).toLocaleString("de-DE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "–"; }
+  function neuBereich() {
+    if (!Z.neu.length) return "";
+    return '<details class="karte k-neu" data-k-neu-box' + (Z.neuOffen ? " open" : "") + '><summary><span class="k-neu-zahl">' + Z.neu.length + "</span>" +
+        "<b>Neu aus dem Postfach</b><span class=\"leise\">haben euch geschrieben, sind aber noch kein Kontakt</span></summary>" +
+      '<ul class="k-neu-liste">' + Z.neu.map(function (a) {
+        return '<li><div class="k-neu-wer"><b>' + esc(a.name || a.email) + "</b>" + (a.name ? '<span class="leise">' + esc(a.email) + "</span>" : "") +
+            (a.betreff ? '<span class="k-neu-betreff">' + esc(a.betreff) + "</span>" : "") +
+            '<small class="leise">' + a.mails + (a.mails === 1 ? " Mail" : " Mails") + " · zuletzt " + wannKurz(a.letzte) + "</small></div>" +
+          '<div class="k-neu-knoepfe"><button type="button" class="knopf knopf--primaer knopf--klein" data-k-uebernehmen="' + esc(a.email) + '" data-name="' + esc(a.name || "") + '">Übernehmen</button>' +
+          '<button type="button" class="knopf knopf--klein" data-k-ablehnen="' + esc(a.email) + '">Ablehnen</button></div></li>';
+      }).join("") + "</ul></details>";
+  }
+
   function tagsPanel() {
     return '<section class="karte panel k-tags-panel"><div class="panel-kopf"><h2>Tags</h2><span class="leise">Diese Tags stehen in der Kontaktkarte unter „+“ zur Auswahl und sind zugleich die Listen</span></div>' +
       '<ul class="k-tags-liste">' + (Z.listen.length ? Z.listen.map(function (l) {
@@ -197,8 +214,7 @@
               (k.newsletter_erlaubt && k.newsletter_seit ? "<small>erlaubt seit " + datum(k.newsletter_seit) + "</small>" : "") + "</label>" +
             '<div class="reihe"><label class="feld">Status<select name="lifecycle_stage">' + opt(STATUS, k.lifecycle_stage) + '</select></label>' +
               '<label class="feld">Paketinteresse<select name="paketinteresse">' + opt(PAKET, k.paketinteresse) + "</select></label></div>" +
-            '<div class="reihe"><label class="feld">Zielgruppe<input name="zielgruppe" value="' + esc(k.zielgruppe) + '" placeholder="z. B. Makler"></label>' +
-              '<label class="feld">Zuständig<input name="owner" value="' + esc(k.owner) + '" placeholder="Noah / Daniel"></label></div>' +
+            '<label class="feld">Zuständig<input name="owner" value="' + esc(k.owner) + '" placeholder="Noah / Daniel"></label>' +
             '<label class="feld" data-lost' + (k.lifecycle_stage === "verloren" ? "" : " hidden") + '>Grund für Verlust<input name="lost_grund" value="' + esc(k.lost_grund) + '"></label>' +
             '<label class="feld">Notizen<textarea name="notizen" rows="5">' + esc(k.notizen) + "</textarea></label>" +
             '<p class="fehler" data-k-meldung></p>' +
@@ -406,6 +422,9 @@
     if (e.target.name !== "lifecycle_stage") return;
     var l = wurzel.querySelector("[data-lost]"); if (l) l.hidden = e.target.value !== "verloren";
   });
+  wurzel.addEventListener("toggle", function (e) {
+    if (aktiv && e.target.hasAttribute && e.target.hasAttribute("data-k-neu-box")) Z.neuOffen = e.target.open;
+  }, true);
   function oeffneKontakt(tr) { C.oeffne("kontakte", tr.getAttribute("data-kontakt")); }
   wurzel.addEventListener("keydown", function (e) {
     if (!aktiv || e.key !== "Enter") return;
@@ -449,6 +468,20 @@
         return api("kontakt_loeschen", { contact_id: id }).then(function () { Z.meldung = "„" + name(k) + "“ wurde gelöscht."; delete Z.auswahl[id]; return listeLaden(); }).catch(fehler);
       }
       return;
+    }
+    if ((t = e.target.closest("[data-k-uebernehmen]"))) {
+      t.disabled = true; t.textContent = "…";
+      var mail = t.getAttribute("data-k-uebernehmen");
+      return api("absender_uebernehmen", { email: mail, name: t.getAttribute("data-name") }).then(function () {
+        Z.neuOffen = true; Z.meldung = mail + " ist jetzt Kontakt – frühere Mails hängen im Verlauf."; return listeLaden();
+      }).catch(function (err) { t.disabled = false; t.textContent = "Fehler: " + err.message; });
+    }
+    if ((t = e.target.closest("[data-k-ablehnen]"))) {
+      t.disabled = true;
+      var weg = t.getAttribute("data-k-ablehnen");
+      return api("absender_ignorieren", { email: weg }).then(function () {
+        Z.neu = Z.neu.filter(function (a) { return a.email !== weg; }); Z.neuOffen = true; listeZeichnen();
+      }).catch(function (err) { t.disabled = false; t.textContent = "Fehler: " + err.message; });
     }
     if (e.target.closest("[data-k-tags-knopf]")) { Z.tagsVerwalten = !Z.tagsVerwalten; return listeZeichnen(); }
     if (e.target.closest("[data-k-tag-anlegen]")) {
@@ -500,7 +533,7 @@
     e.preventDefault();
     var f = e.target, m = wurzel.querySelector("[data-k-meldung]"), knopf = f.querySelector('button[type="submit"]');
     var daten = { contact_id: Z.detail.kontakt.contact_id };
-    ["email", "titel", "vorname", "nachname", "telefon", "position", "lifecycle_stage", "paketinteresse", "zielgruppe", "owner", "lost_grund", "notizen", "herkunft", "newsletter_grundlage"].forEach(function (n) { daten[n] = f.elements[n].value; });
+    ["email", "titel", "vorname", "nachname", "telefon", "position", "lifecycle_stage", "paketinteresse", "owner", "lost_grund", "notizen", "herkunft", "newsletter_grundlage"].forEach(function (n) { daten[n] = f.elements[n].value; });
     daten.tags = Z.tags.slice();
     daten.newsletter_erlaubt = f.elements.newsletter_erlaubt.checked;
     if (daten.newsletter_erlaubt && !daten.newsletter_grundlage) { m.textContent = "Bitte die Grundlage für den Newsletter wählen."; return; }

@@ -109,6 +109,8 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
     }
     case "postfach":
       return ["dashboard_postfach", { p_tage: Math.min(Math.max(Number(b.tage) || 30, 1), 365) }];
+    case "datenquellen":
+      return ["dashboard_datenquellen", {}];
     case "absender_uebernehmen": {
       const mail = textOderLeer(b.email, 200).trim();
       if (!mail.includes("@")) throw fehler("E-Mail fehlt");
@@ -135,7 +137,7 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       if (!id) throw fehler("contact_id fehlt");
       const p: Record<string, unknown> = { contact_id: id };
       for (const [f, max] of [["email", 200], ["titel", 50], ["vorname", 100], ["nachname", 100], ["telefon", 50], ["position", 300], ["lifecycle_stage", 20],
-                              ["zielgruppe", 100], ["paketinteresse", 20], ["lost_grund", 300], ["owner", 50], ["notizen", 20_000],
+                              ["paketinteresse", 20], ["lost_grund", 300], ["owner", 50], ["notizen", 20_000],
                               ["herkunft", 30], ["newsletter_grundlage", 20]] as const) {
         p[f] = textOderLeer(k[f], max);
       }
