@@ -362,3 +362,34 @@ mark { background: var(--treffer); color: inherit; border-radius: 2px; padding: 
 .nl-status { margin: 0; }
 .nl-liste-knopf { margin-top: .4rem; }
 .tabelle td.n + td, .tabelle th.n + th { padding-left: 1.4rem; }
+
+/* Kontakte: Auswahl, Menü, Listen */
+.k-wahl { width: 34px; padding-right: 0 !important; }
+.k-wahl input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+.k-unter { display: block; font-size: .78rem; color: var(--ink-3); line-height: 1.4; }
+.k-position { max-width: 260px; }
+.k-gewaehlt td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.k-menue-spalte { width: 44px; text-align: right; position: relative; padding-right: .3rem !important; }
+.k-punkte { all: unset; cursor: pointer; width: 30px; height: 30px; display: inline-grid; place-items: center; border-radius: 6px; font-size: 1.15rem; line-height: 1; color: var(--ink-2); }
+.k-punkte:hover, .k-punkte[aria-expanded="true"] { background: var(--panel-2); color: var(--ink); }
+.k-punkte:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.k-menue { position: absolute; right: .3rem; top: calc(100% - .4rem); z-index: 20; min-width: 220px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: .3rem; display: grid; text-align: left; }
+.k-menue button { all: unset; cursor: pointer; padding: .5rem .7rem; border-radius: 6px; font-size: .86rem; color: var(--ink); white-space: nowrap; }
+.k-menue button:hover, .k-menue button:focus-visible { background: var(--panel-2); }
+.k-menue .k-menue-gefahr { color: var(--bad-ink); }
+.k-tabelle { overflow: visible; }
+.k-auswahlleiste { position: sticky; top: .5rem; z-index: 15; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; padding: .6rem 1rem; margin-bottom: .8rem;
+  background: var(--panel); border: 1px solid var(--accent); border-radius: var(--r); box-shadow: var(--shadow); font-size: .88rem; }
+.k-panel { padding: 1rem 1.1rem; margin-bottom: .9rem; display: grid; gap: .7rem; }
+.k-panel-reihe { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem 1rem; }
+.k-panel-reihe .feld { flex: 1 1 220px; }
+.k-oder { color: var(--ink-3); font-size: .82rem; padding-bottom: .65rem; }
+.k-meldung { margin: 0 0 .7rem; padding: .55rem .8rem; border-radius: var(--r); background: color-mix(in srgb, var(--good) 12%, transparent); color: var(--good-ink); font-size: .86rem; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 720px) {
+  .k-tabelle th:nth-child(3), .k-tabelle td:nth-child(3), .k-tabelle th:nth-child(4), .k-tabelle td:nth-child(4),
+  .k-tabelle th:nth-child(6), .k-tabelle td:nth-child(6) { display: none; }
+}
+.nl-listen-tabelle tbody tr { cursor: pointer; }
+.nl-listen-tabelle tbody tr:hover td { background: var(--panel-2); }

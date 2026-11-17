@@ -4,7 +4,7 @@
 (function () {
   "use strict";
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var Z = { liste: [], suche: "", filter: "", detail: null, offen: {} };
+  var Z = { liste: [], listen: [], suche: "", filter: "", detail: null, offen: {}, auswahl: {}, menue: null, panel: null, meldung: "" };
   var aktiv = false;
 
   var STATUS = { lead: "Lead", mql: "MQL", sql: "SQL", kunde: "Kunde", verloren: "Verloren" };
@@ -12,7 +12,7 @@
   var HERKUNFT = { "": "–", termin: "Terminbuchung", postfach: "Postfach", call: "Call", website: "Website",
                    linkedin_follower: "LinkedIn-Follower", linkedin_reaktion: "LinkedIn-Reaktion", manuell: "Manuell", import: "Import" };
   var GRUNDLAGE = { "": "– bitte wählen –", einwilligung: "Einwilligung (z. B. Formular, DOI)", bestandskunde: "Bestandskunde" };
-  var FILTER = [["", "Alle Kontakte"], ["newsletter", "Newsletter erlaubt"], ["ohne_position", "Position fehlt"], ["name_unvollstaendig", "Name unvollständig"], ["tag:linkedin_follower", "Tag: LinkedIn-Follower"],
+  var FILTER = [["", "Alle Kontakte"], ["newsletter", "Newsletter erlaubt"], ["ohne_position", "Position fehlt"], ["name_unvollstaendig", "Name unvollständig"],
                 ["herkunft:linkedin_follower", "Herkunft: LinkedIn-Follower"], ["herkunft:linkedin_reaktion", "Herkunft: LinkedIn-Reaktion"],
                 ["herkunft:termin", "Herkunft: Terminbuchung"], ["herkunft:postfach", "Herkunft: Postfach"], ["herkunft:call", "Herkunft: Call"],
                 ["herkunft:website", "Herkunft: Website"]];
@@ -31,18 +31,24 @@
   function dauer(s) { return s < 60 ? Math.round(s) + " s" : Math.round(s / 60) + " min"; }
 
   function start(id) {
-    aktiv = true;
+    aktiv = true; Z.menue = null; Z.panel = null; Z.auswahl = {}; Z.meldung = "";
     wurzel.innerHTML = '<div class="laedt">Lädt …</div>';
+    // #kontakte/liste:<name> öffnet die Liste
+    if (id && id.indexOf("liste:") === 0) { Z.filter = "tag:" + decodeURIComponent(id.slice(6)); Z.suche = ""; id = null; }
     id ? detailLaden(id) : listeLaden();
   }
+  function aktuelleListe() { return Z.filter.indexOf("tag:") === 0 ? Z.filter.slice(4) : null; }
+  function ausgewaehlt() { return Object.keys(Z.auswahl).filter(function (k) { return Z.auswahl[k]; }); }
   function stop() { aktiv = false; }
   function fehler(e) { if (aktiv) wurzel.innerHTML = '<div class="karte leer">Fehler: ' + esc(e.message) + "</div>"; }
 
   /* ---------- Liste ---------- */
   function listeLaden() {
     Z.detail = null;
-    return api("kontakte_liste", { suche: Z.suche, filter: Z.filter }).then(function (r) {
-      Z.liste = r;
+    return Promise.all([api("kontakte_liste", { suche: Z.suche, filter: Z.filter }), api("listen", {})]).then(function (x) {
+      var r = x[0]; Z.liste = r; Z.listen = x[1] || [];
+      var da = {}; r.forEach(function (k) { da[k.contact_id] = true; });
+      Object.keys(Z.auswahl).forEach(function (k) { if (!da[k]) delete Z.auswahl[k]; });
       if (!Z.suche && !Z.filter) { var z = document.querySelector('[data-zahl="kontakte"]'); if (z) z.textContent = r.length || ""; }
       if (aktiv) listeZeichnen();
     }).catch(fehler);
@@ -50,23 +56,79 @@
 
   function listeZeichnen() {
     var fokus = document.activeElement && document.activeElement.hasAttribute("data-k-suche");
+    var liste = aktuelleListe(), info = liste && Z.listen.filter(function (l) { return l.liste === liste; })[0];
+    var aus = ausgewaehlt(), alle = Z.liste.length && aus.length === Z.liste.length;
     wurzel.innerHTML =
-      '<div class="kopf"><div><h1>Kontakte</h1><p class="leise">Alle Personen aus Terminbuchungen, Postfach, Calls und LinkedIn</p></div></div>' +
+      (liste ? '<p class="zurueck"><a href="#kontakte" data-k-alle>← Alle Kontakte</a></p>' : "") +
+      '<div class="kopf"><div><h1>' + (liste ? "Liste „" + esc(liste) + "“" : "Kontakte") + '</h1><p class="leise">' +
+        (liste ? zahlText(info ? info.kontakte : Z.liste.length, "Kontakt", "Kontakte") + " · " + zahlText(info ? info.erlaubt : 0, "darf", "dürfen") + " den Newsletter bekommen"
+               : "Alle Personen aus Terminbuchungen, Postfach, Calls, LinkedIn und Listen") + "</p></div>" +
+        (liste ? '<button type="button" class="knopf knopf--gefahr" data-k-liste-loeschen>Liste auflösen</button>' : "") + "</div>" +
       '<div class="leiste k-leiste"><input type="search" class="suche" data-k-suche placeholder="Name, E-Mail, Firma oder Position" value="' + esc(Z.suche) + '">' +
         '<select class="k-filter" data-k-filter aria-label="Filter">' + FILTER.map(function (f) {
           return '<option value="' + f[0] + '"' + (Z.filter === f[0] ? " selected" : "") + ">" + esc(f[1]) + "</option>";
-        }).join("") + "</select></div>" +
-      '<p class="zahlzeile">' + Z.liste.length + (Z.liste.length === 1 ? " Kontakt" : " Kontakte") + "</p>" +
-      (Z.liste.length ? '<div class="karte tabelle-rahmen"><table class="tabelle tabelle--klick"><thead><tr><th>Name</th><th>Firma</th><th>Herkunft</th><th>Status</th><th>Letzte Aktivität</th>' +
-        '<th class="n">Besuche</th><th class="n">Termine</th><th class="n">LinkedIn</th><th class="n">Calls</th></tr></thead><tbody>' +
+        }).join("") +
+        (Z.listen.length ? '<optgroup label="Listen">' + Z.listen.map(function (l) {
+          var v = "tag:" + l.liste;
+          return '<option value="' + esc(v) + '"' + (Z.filter === v ? " selected" : "") + ">" + esc(l.liste) + " (" + l.kontakte + ")</option>";
+        }).join("") + "</optgroup>" : "") + "</select></div>" +
+      '<div class="k-auswahlleiste"' + (aus.length ? "" : " hidden") + '><b>' + aus.length + " ausgewählt</b>" +
+        '<button type="button" class="knopf knopf--primaer" data-k-aktion="liste">Zu Liste hinzufügen</button>' +
+        (liste ? '<button type="button" class="knopf" data-k-aktion="entfernen">Aus „' + esc(liste) + '“ entfernen</button>' : "") +
+        '<button type="button" class="li-link" data-k-aktion="aufheben">Auswahl aufheben</button></div>' +
+      '<div data-k-panel>' + panel() + "</div>" +
+      (Z.meldung ? '<p class="k-meldung">' + esc(Z.meldung) + "</p>" : "") +
+      '<p class="zahlzeile">' + zahlText(Z.liste.length, "Kontakt", "Kontakte") + (Z.liste.length >= 1000 ? " (die ersten 1.000 – Suche oder Filter eingrenzen)" : "") + "</p>" +
+      (Z.liste.length ? '<div class="karte tabelle-rahmen k-tabelle"><table class="tabelle tabelle--klick"><thead><tr>' +
+        '<th class="k-wahl"><input type="checkbox" data-k-alle-wahl aria-label="Alle auswählen"' + (alle ? " checked" : "") + "></th>" +
+        "<th>Name</th><th>Firma</th><th>Position</th><th>Status</th><th>Letzte Aktivität</th><th class=\"k-menue-spalte\"><span class=\"sr\">Aktionen</span></th></tr></thead><tbody>" +
         Z.liste.map(function (k) {
-          return '<tr data-kontakt="' + k.contact_id + '" tabindex="0"><td><b>' + esc(name(k)) + "</b>" + (k.newsletter_erlaubt ? ' <span class="pille pille--gut" title="Newsletter erlaubt">NL</span>' : "") +
-              '<br><small class="leise">' + esc(k.email || k.position || "") + "</small></td>" +
-            "<td>" + esc(k.firma || "–") + "</td><td>" + esc(HERKUNFT[k.herkunft || ""] || k.herkunft) + "</td><td>" + pille(k.lifecycle_stage) + "</td><td>" + relativ(k.letzte_aktivitaet) + "</td>" +
-            '<td class="n">' + k.besuche + '</td><td class="n">' + k.termine + '</td><td class="n">' + (k.linkedin || 0) + '</td><td class="n">' + k.calls + "</td></tr>";
+          var id = k.contact_id;
+          return '<tr data-kontakt="' + id + '" tabindex="0"' + (Z.auswahl[id] ? ' class="k-gewaehlt"' : "") + ">" +
+            '<td class="k-wahl"><input type="checkbox" data-k-wahl="' + id + '" aria-label="' + esc(name(k)) + ' auswählen"' + (Z.auswahl[id] ? " checked" : "") + "></td>" +
+            "<td><b>" + esc(name(k)) + "</b>" + (k.newsletter_erlaubt ? ' <span class="pille pille--gut" title="Newsletter erlaubt">NL</span>' : "") +
+              (k.email ? '<small class="k-unter">' + esc(k.email) + "</small>" : "") + (k.telefon ? '<small class="k-unter">' + esc(k.telefon) + "</small>" : "") + "</td>" +
+            "<td>" + esc(k.firma || "–") + '</td><td class="k-position">' + esc(k.position || "–") + "</td><td>" + pille(k.lifecycle_stage) + "</td><td>" + relativ(k.letzte_aktivitaet) + "</td>" +
+            '<td class="k-menue-spalte"><button type="button" class="k-punkte" data-k-menue="' + id + '" aria-label="Aktionen für ' + esc(name(k)) + '" aria-haspopup="true" aria-expanded="' + (Z.menue === id) + '">⋮</button>' +
+              (Z.menue === id ? menue(k, liste) : "") + "</td></tr>";
         }).join("") + "</tbody></table></div>"
         : '<div class="karte leer">' + (Z.suche || Z.filter ? "Kein Kontakt gefunden." : "Noch keine Kontakte. Sie entstehen automatisch mit jeder Terminbuchung.") + "</div>");
     if (fokus) { var f = wurzel.querySelector("[data-k-suche]"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }
+    var pin = wurzel.querySelector("[data-k-panel] input[data-k-neu]"); if (pin && Z.panel && Z.panel.fokus) { pin.focus(); Z.panel.fokus = false; }
+  }
+  function zahlText(n, eins, viele) { return Number(n || 0).toLocaleString("de-DE") + " " + (n === 1 ? eins : viele); }
+
+  function menue(k, liste) {
+    return '<div class="k-menue" role="menu">' +
+      '<button type="button" role="menuitem" data-k-m="liste" data-id="' + k.contact_id + '">Zu Liste hinzufügen …</button>' +
+      '<button type="button" role="menuitem" data-k-m="bearbeiten" data-id="' + k.contact_id + '">Bearbeiten</button>' +
+      (liste ? '<button type="button" role="menuitem" data-k-m="entfernen" data-id="' + k.contact_id + '">Aus „' + esc(liste) + '“ entfernen</button>' : "") +
+      '<button type="button" role="menuitem" class="k-menue-gefahr" data-k-m="loeschen" data-id="' + k.contact_id + '">Löschen</button></div>';
+  }
+
+  // Auswahlfeld „Zu Liste hinzufügen“ (für einen oder mehrere Kontakte)
+  function panel() {
+    var P = Z.panel; if (!P) return "";
+    var n = P.ids.length;
+    return '<div class="karte k-panel"><b>' + (n === 1 ? esc(P.name) : n + " Kontakte") + " einer Liste hinzufügen</b>" +
+      '<div class="k-panel-reihe"><label class="feld">Bestehende Liste<select data-k-bestehend><option value="">– wählen –</option>' +
+        Z.listen.map(function (l) { return '<option value="' + esc(l.liste) + '"' + (P.liste === l.liste ? " selected" : "") + ">" + esc(l.liste) + " (" + l.kontakte + ")</option>"; }).join("") +
+      '</select></label><span class="k-oder">oder</span><label class="feld">Neue Liste<input data-k-neu maxlength="60" value="' + esc(P.neu || "") + '" placeholder="z. B. Bestandskunden 2026"></label></div>' +
+      '<p class="leise nl-klein">Die Liste ist eine Markierung. Den Newsletter bekommen nur Kontakte, bei denen „Newsletter erlaubt“ gesetzt ist.</p>' +
+      '<div class="knoepfe"><button type="button" class="knopf" data-k-aktion="panel-zu">Abbrechen</button>' +
+        '<button type="button" class="knopf knopf--primaer" data-k-aktion="hinzufuegen">Hinzufügen</button></div></div>';
+  }
+  function panelOeffnen(ids, nameEinzeln) { Z.panel = { ids: ids, name: nameEinzeln || "", liste: "", neu: "", fokus: true }; Z.menue = null; listeZeichnen(); }
+
+  function zuordnen(ids, liste, was) {
+    return api("liste_zuordnen", { contact_ids: ids, liste: liste, was: was }).then(function (r) {
+      Z.meldung = was === "hinzufuegen"
+        ? zahlText(r.geaendert, "Kontakt", "Kontakte") + " zur Liste „" + r.liste + "“ hinzugefügt" + (r.ausgewaehlt > r.geaendert ? " (" + (r.ausgewaehlt - r.geaendert) + " waren schon drin)" : "") +
+          ". Von den ausgewählten " + (r.mit_erlaubnis === 1 ? "darf 1" : "dürfen " + r.mit_erlaubnis) + " den Newsletter bekommen."
+        : zahlText(r.geaendert, "Kontakt", "Kontakte") + " aus „" + r.liste + "“ entfernt.";
+      Z.panel = null; Z.auswahl = {};
+      return listeLaden();
+    });
   }
 
   /* ---------- Detail ---------- */
@@ -225,13 +287,19 @@
   /* ---------- Bedienung ---------- */
   var suchTimer;
   wurzel.addEventListener("input", function (e) {
+    if (aktiv && Z.panel && e.target.hasAttribute("data-k-neu")) { Z.panel.neu = e.target.value; return; }
     if (!aktiv || !e.target.hasAttribute("data-k-suche")) return;
     clearTimeout(suchTimer);
     suchTimer = setTimeout(function () { Z.suche = e.target.value.trim(); listeLaden(); }, 300);
   });
   wurzel.addEventListener("change", function (e) {
     if (!aktiv) return;
-    if (e.target.hasAttribute("data-k-filter")) { Z.filter = e.target.value; return listeLaden(); }
+    if (e.target.hasAttribute("data-k-filter")) {
+      Z.filter = e.target.value; Z.auswahl = {}; Z.meldung = "";
+      history.replaceState(null, "", aktuelleListe() ? "#kontakte/liste:" + encodeURIComponent(aktuelleListe()) : "#kontakte");
+      return listeLaden();
+    }
+    if (Z.panel && e.target.hasAttribute("data-k-bestehend")) { Z.panel.liste = e.target.value; return; }
     if (e.target.name === "newsletter_erlaubt") { var g = wurzel.querySelector("[data-nl-grund]"); if (g) g.hidden = !e.target.checked; return; }
     if (e.target.name !== "lifecycle_stage") return;
     var l = wurzel.querySelector("[data-lost]"); if (l) l.hidden = e.target.value !== "verloren";
@@ -241,8 +309,61 @@
     if (!aktiv || e.key !== "Enter") return;
     var tr = e.target.closest && e.target.closest("tr[data-kontakt]"); if (tr) oeffneKontakt(tr);
   });
+  document.addEventListener("click", function (e) {
+    // Menü schließen, wenn außerhalb geklickt wird
+    if (!aktiv || Z.menue === null || e.target.closest(".k-menue, [data-k-menue]")) return;
+    Z.menue = null; listeZeichnen();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (aktiv && e.key === "Escape" && (Z.menue !== null || Z.panel)) { Z.menue = null; Z.panel = null; listeZeichnen(); }
+  });
   wurzel.addEventListener("click", function (e) {
     if (!aktiv) return;
+    var t;
+    if (e.target.closest(".k-wahl")) {                       // Auswahlkästchen: nicht den Kontakt öffnen
+      var cb = e.target.closest("[data-k-wahl]"), alleCb = e.target.closest("[data-k-alle-wahl]");
+      if (cb) { Z.auswahl[cb.getAttribute("data-k-wahl")] = cb.checked; listeZeichnen(); }
+      else if (alleCb) { var an = alleCb.checked; Z.auswahl = {}; if (an) Z.liste.forEach(function (k) { Z.auswahl[k.contact_id] = true; }); listeZeichnen(); }
+      else { var inp = e.target.closest(".k-wahl").querySelector("input"); if (inp && e.target !== inp) inp.click(); }
+      return;
+    }
+    if ((t = e.target.closest("[data-k-menue]"))) { e.stopPropagation(); var mid = t.getAttribute("data-k-menue"); Z.menue = Z.menue === mid ? null : mid; return listeZeichnen(); }
+    if ((t = e.target.closest("[data-k-m]"))) {
+      e.stopPropagation();
+      var was = t.getAttribute("data-k-m"), id = t.getAttribute("data-id"), k = Z.liste.filter(function (x) { return x.contact_id === id; })[0];
+      Z.menue = null;
+      if (was === "bearbeiten") return C.oeffne("kontakte", id);
+      if (was === "liste") return panelOeffnen([id], name(k));
+      if (was === "entfernen") return zuordnen([id], aktuelleListe(), "entfernen").catch(fehler);
+      if (was === "loeschen") {
+        if (!confirm("„" + name(k) + "“ mit allen Besuchen, Terminen, Mails und Calls endgültig löschen? Das lässt sich nicht rückgängig machen.")) return listeZeichnen();
+        return api("kontakt_loeschen", { contact_id: id }).then(function () { Z.meldung = "„" + name(k) + "“ wurde gelöscht."; delete Z.auswahl[id]; return listeLaden(); }).catch(fehler);
+      }
+      return;
+    }
+    if ((t = e.target.closest("[data-k-aktion]"))) {
+      var a = t.getAttribute("data-k-aktion");
+      if (a === "aufheben") { Z.auswahl = {}; return listeZeichnen(); }
+      if (a === "liste") return panelOeffnen(ausgewaehlt());
+      if (a === "panel-zu") { Z.panel = null; return listeZeichnen(); }
+      if (a === "entfernen") {
+        var ids = ausgewaehlt();
+        if (!confirm(ids.length + (ids.length === 1 ? " Kontakt" : " Kontakte") + " aus der Liste „" + aktuelleListe() + "“ entfernen? Die Kontakte selbst bleiben erhalten.")) return;
+        return zuordnen(ids, aktuelleListe(), "entfernen").catch(fehler);
+      }
+      if (a === "hinzufuegen") {
+        var ziel = (Z.panel.neu || "").trim() || Z.panel.liste;
+        if (!ziel) { alert("Bitte eine bestehende Liste wählen oder einen Namen für eine neue Liste eingeben."); return; }
+        t.disabled = true;
+        return zuordnen(Z.panel.ids, ziel, "hinzufuegen").catch(function (err) { t.disabled = false; alert("Fehler: " + err.message); });
+      }
+    }
+    if (e.target.closest("[data-k-liste-loeschen]")) {
+      var l = aktuelleListe();
+      if (!confirm("Liste „" + l + "“ auflösen? Die Markierung wird bei allen Kontakten entfernt, die Kontakte selbst bleiben erhalten.")) return;
+      return api("liste_loeschen", { liste: l }).then(function (n) { Z.meldung = "Liste „" + l + "“ aufgelöst (" + n + " Kontakte)."; Z.filter = ""; history.replaceState(null, "", "#kontakte"); return listeLaden(); }).catch(fehler);
+    }
+    if (e.target.closest("[data-k-alle]")) { e.preventDefault(); Z.filter = ""; Z.meldung = ""; history.pushState(null, "", "#kontakte"); return listeLaden(); }
     var tr = e.target.closest("tr[data-kontakt]"); if (tr) return oeffneKontakt(tr);
     var z = e.target.closest("[data-zurueck]"); if (z) { e.preventDefault(); return C.oeffne("kontakte"); }
     var c = e.target.closest("[data-call]"); if (c) { e.preventDefault(); return C.oeffne("calls", c.getAttribute("data-call")); }

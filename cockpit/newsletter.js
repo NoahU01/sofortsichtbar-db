@@ -64,9 +64,12 @@
             : '<p class="panel-leer">Noch kein Newsletter. Oben rechts „Neuer Newsletter“.</p>') + "</section>" +
         '<section class="karte panel"><div class="panel-kopf"><h2>Empfänger</h2><span class="leise">' + zahl(d.erlaubt_gesamt) + " Kontakte mit Newsletter-Erlaubnis · " +
           zahl(d.gesperrt) + " gesperrt (abgemeldet, unzustellbar, Beschwerde)</span></div>" +
-          (d.listen.length ? '<table class="tabelle"><thead><tr><th>Liste (Tag)</th><th class="n">Kontakte</th><th class="n">mit Erlaubnis</th></tr></thead><tbody>' +
-            d.listen.map(function (l) { return "<tr><td>" + esc(l.liste) + '</td><td class="n">' + zahl(l.kontakte) + '</td><td class="n">' + zahl(l.erlaubt) + "</td></tr>"; }).join("") + "</tbody></table>"
-            : '<p class="panel-leer">Noch keine Listen.</p>') + "</section>";
+          (d.listen.length ? '<table class="tabelle nl-listen-tabelle"><thead><tr><th>Liste</th><th class="n">Kontakte</th><th class="n">mit Erlaubnis</th></tr></thead><tbody>' +
+            d.listen.map(function (l) {
+              return '<tr data-nl-liste="' + esc(l.liste) + '" tabindex="0" title="Liste öffnen"><td><a href="#kontakte/liste:' + encodeURIComponent(l.liste) + '">' + esc(l.liste) + '</a></td><td class="n">' + zahl(l.kontakte) + '</td><td class="n">' + zahl(l.erlaubt) + "</td></tr>";
+            }).join("") + "</tbody></table>"
+            : '<p class="panel-leer">Noch keine Listen.</p>') +
+          '<p class="leise nl-klein">Listen baust du unter <a href="#kontakte">Kontakte</a>: Kontakte anhaken → „Zu Liste hinzufügen“. Oder oben „Liste hochladen“.</p>' + "</section>";
     }).catch(fehler);
   }
 
@@ -369,6 +372,7 @@
     if (!aktiv) return;
     var t;
     if ((t = e.target.closest("tr[data-nl]"))) return C.oeffne("newsletter", t.getAttribute("data-nl"));
+    if ((t = e.target.closest("tr[data-nl-liste]")) && !e.target.closest("a")) return C.oeffne("kontakte", "liste:" + encodeURIComponent(t.getAttribute("data-nl-liste")));
     if ((t = e.target.closest("[data-w]"))) {
       var w = t.getAttribute("data-w");
       if (w === "h1") return block("# Überschrift");

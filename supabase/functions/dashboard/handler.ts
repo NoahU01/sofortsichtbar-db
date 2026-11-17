@@ -121,7 +121,7 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
     }
     case "kontakte_liste": {
       const filter = textOderLeer(b.filter, 60);
-      if (filter && !/^(newsletter|ohne_position|name_unvollstaendig|herkunft:[a-z_]+|tag:[\p{L}\p{N}_ -]+)$/u.test(filter)) throw fehler("unbekannter Filter");
+      if (filter && !/^(newsletter|ohne_position|name_unvollstaendig|herkunft:[a-z_]+|tag:[^\n]{1,60})$/u.test(filter)) throw fehler("unbekannter Filter");
       return ["dashboard_kontakte_liste", { p_suche: textOderLeer(b.suche, 100), p_filter: filter || null }];
     }
     case "kontakt": {
@@ -150,6 +150,23 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       const id = uuidOderNull(b.contact_id);
       if (!id) throw fehler("contact_id fehlt");
       return ["dashboard_kontakt_loeschen", { p_contact_id: id }];
+    }
+    case "listen":
+      return ["dashboard_listen", {}];
+    case "liste_zuordnen": {
+      const ids = (Array.isArray(b.contact_ids) ? b.contact_ids : []).map(uuidOderNull).filter((x): x is string => !!x);
+      if (!ids.length) throw fehler("keine Kontakte ausgewählt");
+      if (ids.length > 5000) throw fehler("zu viele Kontakte auf einmal (max. 5000)");
+      const liste = textOderLeer(b.liste, 60).trim();
+      if (!liste) throw fehler("Name der Liste fehlt");
+      const was = textOderLeer(b.was, 20);
+      if (was !== "hinzufuegen" && was !== "entfernen") throw fehler("unbekannte Aktion");
+      return ["dashboard_liste_zuordnen", { p_contact_ids: ids, p_liste: liste, p_aktion: was }];
+    }
+    case "liste_loeschen": {
+      const liste = textOderLeer(b.liste, 60).trim();
+      if (!liste) throw fehler("Name der Liste fehlt");
+      return ["dashboard_liste_loeschen", { p_liste: liste }];
     }
     case "newsletter_uebersicht":
       return ["dashboard_newsletter_uebersicht", {}];
