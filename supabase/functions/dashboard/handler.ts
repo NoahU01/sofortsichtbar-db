@@ -262,6 +262,31 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       const weitere = Math.min(Math.max(Math.trunc(Number(b.weitere) || 0), 0), 50);
       return ["dashboard_linkedin_erfassen", { p: { beitrag_id: id, personen, kommentare, weitere }, p_von: email }];
     }
+    case "instagram":
+      return ["dashboard_instagram", {}];
+    case "instagram_erfassen": {
+      const post = textOderLeer(b.post_id, 100).trim();
+      if (!post) throw fehler("Beitrag fehlt");
+      const roh = Array.isArray(b.personen) ? b.personen : [], rohK = Array.isArray(b.kommentare) ? b.kommentare : [];
+      if (roh.length > 5000 || rohK.length > 2000) throw fehler("zu viele Einträge auf einmal");
+      const nutzer = (x: unknown) => textOderLeer(x, 40).trim().replace(/^@/, "").toLowerCase();
+      const personen = roh.filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+        .map((x) => ({ benutzername: nutzer(x.benutzername), name: textOderLeer(x.name, 200).trim() }))
+        .filter((x) => /^[a-z0-9._]{1,30}$/.test(x.benutzername));
+      const kommentare = rohK.filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+        .map((x) => ({ benutzername: nutzer(x.benutzername), name: textOderLeer(x.name, 200).trim(), text: textOderLeer(x.text, 5000).trim() }))
+        .filter((x) => /^[a-z0-9._]{1,30}$/.test(x.benutzername));
+      return ["dashboard_instagram_erfassen", { p: { post_id: post, personen, kommentare }, p_von: email }];
+    }
+    case "instagram_person": {
+      const id = uuidOderNull(b.person_id);
+      if (!id) throw fehler("person_id fehlt");
+      const was = textOderLeer(b.was, 20);
+      if (!["zuordnen", "loesen", "ignorieren", "zurueckholen", "kontakt_anlegen"].includes(was)) throw fehler("unbekannte Aktion");
+      const kontakt = uuidOderNull(b.contact_id);
+      if (was === "zuordnen" && !kontakt) throw fehler("contact_id fehlt");
+      return ["dashboard_instagram_person", { p_person_id: id, p_aktion: was, p_contact_id: kontakt }];
+    }
     case "ausschluss":
       return ["dashboard_ausschluss", {}];
     case "ausschluss_setzen": {
