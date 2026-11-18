@@ -17,8 +17,10 @@ if [ -z "$KEY" ]; then
   KEY=$(openssl rand -hex 24)
   printf 'LINKEDHELPER_KEY=%s\n' "$KEY" >> "$ENV"
 fi
-echo "Setze Secrets der Edge Functions …"
-supabase secrets set --env-file "$ENV" >/dev/null
+echo "Setze den Schlüssel als Secret der Edge Functions …"
+TMP=$(mktemp); chmod 600 "$TMP"; trap 'rm -f "$TMP"' EXIT
+printf 'LINKEDHELPER_KEY=%s\n' "$KEY" > "$TMP"
+supabase secrets set --env-file "$TMP" --yes
 BASIS="https://udrcjopiixhlntmnsosj.supabase.co/functions/v1/linkedhelper-webhook?k=${KEY}"
 echo
 echo "Für Daniel – ADRESSE 1 (Aktion „Send person to webhook“):"
