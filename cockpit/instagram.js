@@ -49,7 +49,7 @@
     }
     var offen = B().filter(function (b) { return b.beobachtet && b.fehlen > 0; });
     wurzel.innerHTML =
-      '<div class="kopf"><div><h1>Instagram</h1><p class="leise">Beiträge und Zahlen aus Buffer · wer gelikt hat, per Einfügen</p></div></div>' +
+      '<div class="kopf"><div><h1>Instagram</h1><p class="leise">Beiträge und Zahlen aus Buffer · ' + zahl(Z.daten.follower) + ' Follower erfasst · Likes ab dem 18.11. per Einfügen</p></div></div>' +
       (offen.length ? '<div class="statusleiste"><span class="status status--aus"><i></i>Bei ' + offen.length + (offen.length === 1 ? " Beitrag fehlen" : " Beiträgen fehlen") + " Likes</span></div>" : "") +
       '<section class="karte panel" data-ig-form>' + formular() + "</section>" +
       '<section class="karte panel"><div class="panel-kopf"><h2>Beiträge</h2><span class="leise">aus Buffer, täglich aktualisiert</span></div>' + beitraege() + "</section>" +
@@ -107,7 +107,7 @@
     if (!l.length) return '<p class="panel-leer">Keine Personen in dieser Ansicht.</p>';
     return '<div class="tabelle-scroll"><table class="tabelle li-personen"><thead><tr><th>Person</th><th class="n">Likes</th><th class="n">Kommentare</th><th>Zuletzt</th><th>Kontakt</th></tr></thead><tbody>' +
       l.map(function (p) {
-        return "<tr><td><b>@" + esc(p.benutzername) + "</b>" + (p.name ? '<small class="li-position">' + esc(p.name) + "</small>" : "") + "</td>" +
+        return "<tr><td><b>@" + esc(p.benutzername) + "</b>" + (p.follower ? ' <span class="pille">Follower</span>' : "") + (p.name ? '<small class="li-position">' + esc(p.name) + "</small>" : "") + "</td>" +
           '<td class="n"><b>' + zahl(p.likes) + '</b></td><td class="n">' + (p.kommentare ? "<b>" + zahl(p.kommentare) + "</b>" : "–") + "</td>" +
           "<td>" + tag(p.letzte) + '</td><td class="li-kontakt">' + kontaktZelle(p) + "</td></tr>";
       }).join("") + "</tbody></table></div>";

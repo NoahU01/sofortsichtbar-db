@@ -260,7 +260,7 @@
     var calls = n("call_recorded"), ein = n("mail_received"), aus = n("mail_sent");
     var klicks = n("email_click"), nlEin = n("email_sent"), ab = n("email_unsubscribe");
     var li = n("linkedin_reaction"), folgt = n("linkedin_follow"), liK = n("linkedin_comment"), auf = n("email_open");
-    var igL = n("instagram_like"), igK = n("instagram_comment");
+    var igL = n("instagram_like"), igK = n("instagram_comment"), igF = n("instagram_follow");
     var z = [];
     function zeile(ic, titel, wert, wann) { z.push('<li><span class="k-sig-ic">' + icon(ic) + '</span><span class="k-sig-t">' + titel + '</span><b>' + wert + "</b>" + (wann ? '<small>' + wann + "</small>" : "<small></small>") + "</li>"); }
     if (web.length) zeile("web", "Website-Besuche", Object.keys(sitzungen).length || 1, zuletzt(web));
@@ -277,6 +277,7 @@
     if (ab.length) zeile("weg", "Newsletter abbestellt", "ja", zuletzt(ab));
     if (li.length) zeile("daumen", "LinkedIn-Reaktionen", li.length, zuletzt(li));
     if (liK.length) zeile("sprech", "LinkedIn-Kommentare", liK.length, zuletzt(liK));
+    if (igF.length) zeile("folgen", "Folgt auf Instagram", "ja", "");
     if (igL.length) zeile("daumen", "Instagram-Likes", igL.length, zuletzt(igL));
     if (igK.length) zeile("sprech", "Instagram-Kommentare", igK.length, zuletzt(igK));
     if (folgt.length) zeile("folgen", "Folgt der Firmenseite", "seit", new Date(folgt[0].zeit).toLocaleDateString("de-DE", { month: "short", year: "numeric" }));
@@ -397,6 +398,10 @@
         esc((p.kanal === "daniel" ? "Beitrag von Daniel" : "Beitrag der Firmenseite") + (p.veroeffentlicht ? " vom " + new Date(p.veroeffentlicht).toLocaleDateString("de-DE") : "")) +
         (p.url ? ' · <a href="' + esc(p.url) + '" target="_blank" rel="noopener">Beitrag öffnen</a>' : "");
     }
+    else if (e.event_name === "instagram_follow") {
+      titel = "Folgt sofort sichtbar auf Instagram"; klasse = "tl--linkedin"; ic = "folgen";
+      text = (p.benutzername ? "@" + esc(p.benutzername) + " · " : "") + '<small class="leise">seit wann, ist nicht bekannt – Datum = Erfassung der Follower-Liste</small>';
+    }
     else if (e.event_name === "instagram_like" || e.event_name === "instagram_comment") {
       var kom = e.event_name === "instagram_comment";
       titel = "Instagram: " + (kom ? "Kommentar zu" : "Like auf") + " „" + esc(p.beitrag || "Beitrag") + "“"; klasse = "tl--linkedin"; ic = kom ? "sprech" : "daumen";
@@ -413,7 +418,7 @@
     else { titel = esc(e.event_name); }
     ic = { "tl--termin": "termin", "tl--absage": /^email_(unsub|bounce|compl)/.test(e.event_name) ? (e.event_name === "email_unsubscribe" ? "weg" : "warn") : "absage",
            "tl--mail": e.event_name === "mail_sent" ? "mailAus" : "mailEin", "tl--call": "call",
-           "tl--linkedin": e.event_name === "linkedin_follow" ? "folgen" : /_comment$/.test(e.event_name) ? "sprech" : "daumen",
+           "tl--linkedin": /_follow$/.test(e.event_name) ? "folgen" : /_comment$/.test(e.event_name) ? "sprech" : "daumen",
            "tl--news": e.event_name === "email_open" ? "auge" : "news", "tl--klick": "klick" }[klasse] || ic;
     return '<li class="tl ' + klasse + '"><span class="tl-icon">' + icon(ic) + '</span><div class="tl-inhalt"><div class="tl-kopf tl-kopf--fest"><b>' + titel + '</b><span class="tl-zeit">' + (p.nur_monat ? "" : uhr(e.zeit)) + "</span></div>" +
       (text ? '<div class="tl-text">' + text + "</div>" : "") + "</div></li>";
