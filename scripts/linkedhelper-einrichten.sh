@@ -23,12 +23,13 @@ printf 'LINKEDHELPER_KEY=%s\n' "$KEY" > "$TMP"
 supabase secrets set --env-file "$TMP" --yes
 BASIS="https://udrcjopiixhlntmnsosj.supabase.co/functions/v1/linkedhelper-webhook?k=${KEY}"
 echo
-echo "Für Daniel – ADRESSE 1 (Aktion „Send person to webhook“):"
+echo "ADRESSE 1 – Vernetzungs-Kampagne, Aktion „Send person to webhook“ nach angenommener Einladung:"
+echo "  ${BASIS}&art=vernetzung"
 echo
-echo "  ${BASIS}&art=profil"
-echo
-echo "Für Daniel – ADRESSE 2 (Plugin „Send replied to Webhook“):"
-echo
+echo "ADRESSE 2 – Vernetzungs-Kampagne, Plugin „Send replied to Webhook“:"
 echo "  ${BASIS}&art=antwort"
+echo
+echo "ADRESSE 3 – Sammel-Kampagnen „Beitrags-Interaktionen“ und „Follower Firmenseite“:"
+echo "  ${BASIS}&art=profil"
 echo
 echo "Die Adressen enthalten einen geheimen Schlüssel – nur an Daniel geben."

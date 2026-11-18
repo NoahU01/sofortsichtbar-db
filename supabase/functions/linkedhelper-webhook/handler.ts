@@ -3,7 +3,10 @@
  * LinkedHelper-Kampagnen entgegen („Send person to webhook“ bzw. Plugin
  * „Send replied to Webhook“) und gibt sie an public.ingest_linkedhelper weiter.
  *
- *   POST /functions/v1/linkedhelper-webhook?k=<LINKEDHELPER_KEY>&art=profil|antwort
+ *   POST /functions/v1/linkedhelper-webhook?k=<LINKEDHELPER_KEY>&art=profil|vernetzung|antwort
+ *   profil:     sofort-sichtbar-Sammelkampagnen (Beitrags-Interaktionen, Follower) – alle werden gespeichert
+ *   vernetzung, antwort: Daniels Vernetzungs-Kampagne (geht auch an empiria-Zielgruppen) –
+ *               nur gespeichert, wenn die Person schon Kontakt ist
  *
  * Gespeichert wird zunächst die rohe Sendung (die genauen Feldnamen kennen wir
  * erst nach der ersten Testsendung); bekannte LinkedIn-Profile werden sofort
@@ -29,7 +32,8 @@ export async function verarbeite(req: Request, d: Abhaengigkeiten): Promise<Resp
   const u = new URL(req.url);
   const k = u.searchParams.get("k") ?? "";
   if (!d.env.LINKEDHELPER_KEY || !gleich(k, d.env.LINKEDHELPER_KEY)) return ok({ fehler: "nicht berechtigt" }, 401);
-  const art = u.searchParams.get("art") === "antwort" ? "antwort" : "profil";
+  const a = u.searchParams.get("art");
+  const art = a === "antwort" || a === "vernetzung" ? a : "profil";
 
   const text = await req.text();
   if (text.length > MAX) return ok({ fehler: "zu groß" }, 413);
