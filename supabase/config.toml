@@ -448,3 +448,7 @@ verify_jwt = false
 [functions.newsletter-ereignisse]
 # Aufruf per pg_cron bzw. Amazon SNS mit eigenem Schlüssel, kein JWT.
 verify_jwt = false
+
+[functions.linkedhelper-webhook]
+# Aufruf durch LinkedHelper mit eigenem Schlüssel in der URL, kein JWT.
+verify_jwt = false

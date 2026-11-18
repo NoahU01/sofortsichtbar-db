@@ -76,6 +76,11 @@
       li.reaktionen_zuletzt ? status("ok", "aktiv") : status("aus", "noch nichts eingefügt"), wann(li.reaktionen_zuletzt),
       zahl(li.personen) + " Personen erfasst", ""));
 
+    var lh = d.linkedhelper || {};
+    zeilen.push(zeile({ name: "LinkedHelper (Daniel)", was: "Profile aus Daniels Kampagnen per Webhook", takt: "bei jedem Profil" },
+      lh.anzahl ? status("ok", "empfängt") : status("aus", "noch nichts empfangen"), wann(lh.letzter),
+      lh.anzahl ? zahl(lh.anzahl_7t) + " in 7 Tagen · " + zahl(lh.zugeordnet) + " Kontakten zugeordnet" : "", ""));
+
     wurzel.innerHTML =
       '<div class="kopf"><div><h1>Einstellungen</h1><p class="leise">Datenquellen und Anbindungen</p></div>' +
         '<button type="button" class="knopf" data-dq-neu>Aktualisieren</button></div>' +
