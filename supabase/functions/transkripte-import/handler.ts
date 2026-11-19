@@ -6,7 +6,7 @@
  * Files.SelectedOperations.Selected und Leserecht NUR auf diesen Ordner.
  * Ordner: MS_TRANSKRIPT_DRIVE (driveId) + MS_TRANSKRIPT_ORDNER (itemId).
  *
- * Je neue/geänderte Datei: Text auslesen (.docx, .vtt, .txt, .md) und an
+ * Je neue/geänderte Datei: Text auslesen (.docx, .pdf, .vtt, .txt, .md) und an
  * public.ingest_transkript geben (ordnet über den Kalender dem Termin und
  * Kontakt zu, legt einen Call an). Andere Formate werden als „nicht lesbar“
  * vermerkt. Läuft alle 15 Minuten per pg_cron.
@@ -17,10 +17,20 @@ type Env = {
   IMPORT_SECRET?: string; MS_TENANT_ID?: string; MS_CLIENT_ID?: string; MS_CLIENT_SECRET?: string;
   MS_TRANSKRIPT_DRIVE?: string; MS_TRANSKRIPT_ORDNER?: string;
 };
+export type PdfLeser = (daten: Uint8Array) => Promise<string>;
 export type Abhaengigkeiten = {
   env: Env;
   fetch: typeof fetch;
   rpc: (funktion: string, args: Record<string, unknown>) => Promise<any>;
+  pdf?: PdfLeser;
+};
+
+// PDF: Text mit unpdf (pdf.js für Server/Edge), nur geladen, wenn eine PDF kommt
+export const pdfStandard: PdfLeser = async (daten) => {
+  const { extractText, getDocumentProxy } = await import("npm:unpdf@1.9.1");
+  const doc = await getDocumentProxy(daten);
+  const { text } = await extractText(doc, { mergePages: true });
+  return Array.isArray(text) ? text.join("\n\n") : String(text ?? "");
 };
 
 const GRAPH = "https://graph.microsoft.com/v1.0";
@@ -100,10 +110,12 @@ export function zeitAusName(name: string): string | null {
   return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-export async function dateiZuText(name: string, daten: Uint8Array): Promise<{ text: string; status: "importiert" | "nicht_lesbar" | "leer" }> {
+export const LESBAR = ["docx", "pdf", "vtt", "txt", "md"];
+export async function dateiZuText(name: string, daten: Uint8Array, pdf: PdfLeser = pdfStandard): Promise<{ text: string; status: "importiert" | "nicht_lesbar" | "leer" }> {
   const endung = (name.split(".").pop() || "").toLowerCase();
   let text = "";
   if (endung === "docx") text = await docxZuText(daten);
+  else if (endung === "pdf") text = await pdf(daten);
   else if (endung === "vtt") text = vttZuText(new TextDecoder().decode(daten));
   else if (endung === "txt" || endung === "md") text = new TextDecoder().decode(daten);
   else return { text: "", status: "nicht_lesbar" };
@@ -140,9 +152,10 @@ export async function verarbeite(req: Request, d: Abhaengigkeiten): Promise<Resp
                       beginn: zeitAusName(f.name) ?? f.createdDateTime };
       try {
         if (f.size > MAX_GROESSE) { await d.rpc("ingest_transkript", { p: { ...basis, status: "nicht_lesbar", fehler: "Datei zu groß" } }); continue; }
+        if (!LESBAR.includes((f.name.split(".").pop() || "").toLowerCase())) { await d.rpc("ingest_transkript", { p: { ...basis, status: "nicht_lesbar", fehler: "Format wird nicht gelesen" } }); continue; }
         const r = await d.fetch(`${GRAPH}/drives/${encodeURIComponent(d.env.MS_TRANSKRIPT_DRIVE)}/items/${encodeURIComponent(f.id)}/content`, { headers: h });
         if (!r.ok) throw new Error(`Datei laden ${r.status}`);
-        const inhalt = await dateiZuText(f.name, new Uint8Array(await r.arrayBuffer()));
+        const inhalt = await dateiZuText(f.name, new Uint8Array(await r.arrayBuffer()), d.pdf ?? pdfStandard);
         await d.rpc("ingest_transkript", { p: { ...basis, ...inhalt } });
         if (inhalt.status === "importiert") neu++;
       } catch (e) {
