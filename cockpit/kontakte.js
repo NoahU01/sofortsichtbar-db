@@ -4,7 +4,97 @@
 (function () {
   "use strict";
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
-  var Z = { liste: [], listen: [], suche: "", filter: "", detail: null, offen: {}, auswahl: {}, menue: null, panel: null, meldung: "", neu: [], neuOffen: false };
+  var Z = { liste: [], listen: [], suche: "", filter: "", detail: null, offen: {}, auswahl: {}, menue: null, panel: null, meldung: "", neu: [], neuOffen: false,
+            ansicht: "kontakte", f: {}, fMenue: false, fSeite: null, facetten: null, firmen: [], firmaName: "" };
+  try { var gemerkt = JSON.parse(localStorage.getItem("cockpit.kontakte.filter") || "null"); if (gemerkt) { Z.f = gemerkt.f || {}; Z.ansicht = gemerkt.ansicht || "kontakte"; Z.firmaName = gemerkt.firmaName || ""; } } catch (e) {}
+  function merken() { try { localStorage.setItem("cockpit.kontakte.filter", JSON.stringify({ f: Z.f, ansicht: Z.ansicht, firmaName: Z.firmaName })); } catch (e) {} }
+
+  /* ---------- Filter-Baukasten ---------- */
+  var FDEF = [
+    { k: "name", label: "Name", typ: "text", ph: "Name enthält …", extra: ["name_unvollstaendig", "nur unvollständige Namen"] },
+    { k: "firma", label: "Firma", typ: "text", ph: "Firma enthält …" },
+    { k: "position", label: "Position", typ: "text", ph: "Position enthält …", extra: ["position_leer", "nur ohne Position"] },
+    { k: "herkunft", label: "Herkunft", typ: "multi", facette: "herkunft", optionen: [["linkedin", "LinkedIn"], ["instagram", "Instagram"], ["facebook", "Facebook"], ["website", "Website"],
+        ["termin", "Terminbuchung"], ["postfach", "Postfach"], ["call", "Call"], ["manuell", "Manuell"], ["import", "Import"]] },
+    { k: "follower", label: "Follower", typ: "multi", facette: "follower", optionen: [["linkedin", "LinkedIn"], ["instagram", "Instagram"], ["facebook", "Facebook"]] },
+    { k: "newsletter", label: "Newsletter", typ: "eins", facette: "newsletter", optionen: [["ja", "berechtigt"], ["nein", "nicht berechtigt"]] },
+    { k: "signale", label: "Signale", typ: "multi", optionen: [["website", "Website besucht"], ["preise", "Preise angesehen"], ["termin", "Termin"], ["call", "Call"],
+        ["mail_ein", "Mail erhalten"], ["mail_aus", "Mail gesendet"], ["nl_offen", "Newsletter geöffnet"], ["nl_klick", "Newsletter geklickt"],
+        ["li_reaktion", "LinkedIn-Reaktion"], ["li_kommentar", "LinkedIn-Kommentar"], ["ig_like", "Instagram-Like"], ["ig_kommentar", "Instagram-Kommentar"]] },
+    { k: "liste", label: "Liste", typ: "liste" }
+  ];
+  function fdef(k) { return FDEF.filter(function (d) { return d.k === k; })[0]; }
+  function filterAktiv() { return Object.keys(Z.f).some(function (k) { var v = Z.f[k]; return Array.isArray(v) ? v.length : !!v; }); }
+  function optLabel(d, v) { var o = (d.optionen || []).filter(function (x) { return x[0] === v; })[0]; return o ? o[1] : v; }
+  function chipsHtml() {
+    var c = [];
+    FDEF.forEach(function (d) {
+      var v = Z.f[d.k], t = "";
+      if (d.typ === "text" && v) t = d.label + " enthält „" + v + "“";
+      if (d.typ === "multi" && v && v.length) t = d.label + ": " + v.map(function (x) { return optLabel(d, x); }).join(", ") +
+        (d.k === "signale" && Z.f.signal_tage ? " · letzte " + Z.f.signal_tage + " Tage" : "");
+      if (d.typ === "eins" && v) t = d.label + ": " + optLabel(d, v);
+      if (t) c.push('<span class="k-chip"><button type="button" class="k-chip-text" data-k-chip="' + d.k + '">' + esc(t) + '</button><button type="button" class="k-chip-weg" data-k-chip-weg="' + d.k + '" aria-label="Filter entfernen">×</button></span>');
+      if (d.extra && Z.f[d.extra[0]]) c.push('<span class="k-chip"><button type="button" class="k-chip-text" data-k-chip="' + d.k + '">' + esc(d.extra[1]) + '</button><button type="button" class="k-chip-weg" data-k-chip-weg="' + d.extra[0] + '" aria-label="Filter entfernen">×</button></span>');
+    });
+    if (Z.f.firma_id) c.push('<span class="k-chip"><span class="k-chip-text">Firma: ' + esc(Z.firmaName || "ausgewählt") + '</span><button type="button" class="k-chip-weg" data-k-chip-weg="firma_id" aria-label="Filter entfernen">×</button></span>');
+    if (c.length > 1) c.push('<button type="button" class="li-link" data-k-filter-leeren>alle Filter entfernen</button>');
+    return c.join("");
+  }
+  function fMenueHtml() {
+    if (!Z.fMenue) return "";
+    return '<div class="k-fmenue" role="menu">' + FDEF.map(function (d) {
+        var an = d.typ === "text" ? !!Z.f[d.k] || (d.extra && Z.f[d.extra[0]]) : d.typ === "multi" ? (Z.f[d.k] || []).length : d.typ === "eins" ? !!Z.f[d.k] : false;
+        return '<button type="button" role="menuitem" data-k-fseite="' + d.k + '" aria-expanded="' + (Z.fSeite === d.k) + '">' + esc(d.label) + (an ? ' <i class="k-fpunkt"></i>' : "") + "</button>";
+      }).join("") + "</div>" + (Z.fSeite ? '<div class="k-fseite">' + fSeiteHtml(fdef(Z.fSeite)) + "</div>" : "");
+  }
+  function fSeiteHtml(d) {
+    var fa = (Z.facetten && d.facette && Z.facetten[d.facette]) || {};
+    var kopf = '<p class="k-fseite-kopf">' + esc(d.label) + "</p>";
+    if (d.typ === "text") return kopf + '<input type="search" class="suche" data-k-ftext="' + d.k + '" placeholder="' + esc(d.ph) + '" value="' + esc(Z.f[d.k] || "") + '" autocomplete="off">' +
+      (d.extra ? '<label class="k-fopt"><input type="checkbox" data-k-fextra="' + d.extra[0] + '"' + (Z.f[d.extra[0]] ? " checked" : "") + "> " + esc(d.extra[1]) + "</label>" : "");
+    if (d.typ === "multi") return kopf + d.optionen.map(function (o) {
+        return '<label class="k-fopt"><input type="checkbox" data-k-fmulti="' + d.k + '" value="' + o[0] + '"' + ((Z.f[d.k] || []).indexOf(o[0]) >= 0 ? " checked" : "") + "> " + esc(o[1]) +
+          (fa[o[0]] != null ? '<small class="leise">' + fa[o[0]] + "</small>" : "") + "</label>";
+      }).join("") +
+      (d.k === "signale" ? '<label class="feld k-fzeit">Zeitraum<select data-k-fzeit>' + [["", "jemals"], ["7", "letzte 7 Tage"], ["30", "letzte 30 Tage"], ["90", "letzte 90 Tage"], ["365", "letztes Jahr"]].map(function (o) {
+          return '<option value="' + o[0] + '"' + (String(Z.f.signal_tage || "") === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></label>" +
+        '<p class="leise nl-mini">Signal-Score: kommt, sobald die Gewichtung der Signale steht.</p>' : "");
+    if (d.typ === "eins") return kopf + d.optionen.map(function (o) {
+        return '<label class="k-fopt"><input type="radio" name="k-feins-' + d.k + '" data-k-feins="' + d.k + '" value="' + o[0] + '"' + (Z.f[d.k] === o[0] ? " checked" : "") + "> " + esc(o[1]) +
+          (fa[o[0]] != null ? '<small class="leise">' + fa[o[0]] + "</small>" : "") + "</label>";
+      }).join("") + (Z.f[d.k] ? '<button type="button" class="li-link" data-k-chip-weg="' + d.k + '">egal</button>' : "");
+    if (d.typ === "liste") return kopf + (Z.listen.length ? Z.listen.map(function (l) {
+        return '<a class="k-fopt k-fliste" href="#kontakte/liste:' + encodeURIComponent(l.liste) + '">' + esc(l.liste.replace(/_/g, " ")) + '<small class="leise">' + l.kontakte + "</small></a>";
+      }).join("") : '<p class="leise">Noch keine Listen.</p>');
+    return "";
+  }
+  function ergebnisNeu() {
+    var e = wurzel.querySelector("[data-k-ergebnis]"); if (e) e.innerHTML = ergebnisHtml();
+    var c = wurzel.querySelector("[data-k-chips]"); if (c) c.innerHTML = chipsHtml();
+    var m = wurzel.querySelector("[data-k-fmenue-ort]");
+    if (m) wurzel.querySelectorAll(".k-fmenue [data-k-fseite]").forEach(function (b) {
+      var d = fdef(b.getAttribute("data-k-fseite")), an = d.typ === "text" ? !!Z.f[d.k] || (d.extra && Z.f[d.extra[0]]) : d.typ === "multi" ? (Z.f[d.k] || []).length : d.typ === "eins" ? !!Z.f[d.k] : false;
+      b.innerHTML = esc(d.label) + (an ? ' <i class="k-fpunkt"></i>' : "");
+    });
+  }
+  function fMenueNeu() { var m = wurzel.querySelector("[data-k-fmenue-ort]"); if (m) m.innerHTML = fMenueHtml(); var b = wurzel.querySelector("[data-k-fknopf]"); if (b) b.setAttribute("aria-expanded", String(!!Z.fMenue)); }
+  var filterTimer = null;
+  function filterGeaendert(sofort) {
+    merken(); clearTimeout(filterTimer);
+    filterTimer = setTimeout(function () { listeLaden(true); }, sofort ? 0 : 250);
+  }
+  function firmenHtml() {
+    if (!Z.firmen.length) return '<div class="karte leer">' + (filterAktiv() || Z.suche ? "Keine Firma passt zu den Filtern." : "Noch keine Firmen.") + "</div>";
+    return '<p class="zahlzeile">' + zahlText(Z.firmen.length, "Firma", "Firmen") + "</p>" +
+      '<div class="karte tabelle-rahmen"><table class="tabelle tabelle--klick k-firmen"><thead><tr><th>Firma</th><th class="n">Kontakte</th><th>Follower</th><th>Herkunft</th><th>Letzte Aktivität</th></tr></thead><tbody>' +
+      Z.firmen.map(function (f) {
+        return '<tr data-k-firma="' + f.company_id + '" data-name="' + esc(f.name) + '" tabindex="0"><td><b>' + esc(f.name) + "</b>" + (f.domain ? '<small class="k-unter">' + esc(f.domain) + "</small>" : "") + "</td>" +
+          '<td class="n">' + (filterAktiv() && f.treffer !== f.kontakte ? f.treffer + ' <small class="leise">von ' + f.kontakte + "</small>" : f.kontakte) + "</td>" +
+          "<td>" + (f.follower || []).map(function (x) { return '<span class="pille">' + esc({ linkedin: "LinkedIn", instagram: "Instagram", facebook: "Facebook" }[x] || x) + "</span>"; }).join(" ") + "</td>" +
+          "<td>" + esc((f.herkunft || []).map(function (h) { return HERKUNFT[h] || h; }).join(", ")) + "</td><td>" + relativ(f.letzte_aktivitaet) + "</td></tr>";
+      }).join("") + "</tbody></table></div>";
+  }
   var aktiv = false;
 
   var STATUS = { lead: "Lead", mql: "MQL", sql: "SQL", kunde: "Kunde", verloren: "Verloren" };
@@ -52,7 +142,7 @@
   function dauer(s) { return s < 60 ? Math.round(s) + " s" : Math.round(s / 60) + " min"; }
 
   function start(id) {
-    aktiv = true; Z.menue = null; Z.panel = null; Z.auswahl = {}; Z.meldung = "";
+    aktiv = true; Z.menue = null; Z.panel = null; Z.auswahl = {}; Z.meldung = ""; Z.fMenue = false; Z.fSeite = null;
     wurzel.innerHTML = '<div class="laedt">Lädt …</div>';
     // #kontakte/liste:<name> öffnet die Liste
     if (id && id.indexOf("liste:") === 0) { Z.filter = "tag:" + decodeURIComponent(id.slice(6)); Z.suche = ""; id = null; }
@@ -64,14 +154,20 @@
   function fehler(e) { if (aktiv) wurzel.innerHTML = '<div class="karte leer">Fehler: ' + esc(e.message) + "</div>"; }
 
   /* ---------- Liste ---------- */
-  function listeLaden() {
+  function listeLaden(nurErgebnis) {
     Z.detail = null;
-    return Promise.all([api("kontakte_liste", { suche: Z.suche, filter: Z.filter }), api("listen", {}),
-                        api("postfach", { tage: 90 }).catch(function () { return null; })]).then(function (x) {
-      var r = x[0]; Z.liste = r; Z.listen = x[1] || []; Z.neu = x[2] && x[2].unbekannt || [];
-      var da = {}; r.forEach(function (k) { da[k.contact_id] = true; });
+    var liste = aktuelleListe(), firmen = Z.ansicht === "firmen" && !liste;
+    var suche = api(firmen ? "firmen_liste" : "kontakte_suche", { suche: Z.suche, filter: Z.f, liste: liste || "" });
+    if (nurErgebnis && wurzel.querySelector("[data-k-ergebnis]")) {
+      return suche.then(function (r) { if (firmen) Z.firmen = r; else Z.liste = r; if (aktiv) ergebnisNeu(); }).catch(fehler);
+    }
+    return Promise.all([suche, api("listen", {}), api("postfach", { tage: 90 }).catch(function () { return null; }),
+                        api("kontakte_facetten", {}).catch(function () { return null; })]).then(function (x) {
+      if (firmen) { Z.firmen = x[0]; Z.liste = []; } else Z.liste = x[0];
+      Z.listen = x[1] || []; Z.neu = x[2] && x[2].unbekannt || []; Z.facetten = x[3];
+      var da = {}; Z.liste.forEach(function (k) { da[k.contact_id] = true; });
       Object.keys(Z.auswahl).forEach(function (k) { if (!da[k]) delete Z.auswahl[k]; });
-      if (!Z.suche && !Z.filter) { var z = document.querySelector('[data-zahl="kontakte"]'); if (z) z.textContent = r.length || ""; }
+      if (Z.facetten) { var z = document.querySelector('[data-zahl="kontakte"]'); if (z) z.textContent = Z.facetten.gesamt || ""; }
       if (aktiv) listeZeichnen();
     }).catch(fehler);
   }
@@ -89,21 +185,28 @@
                : '<button type="button" class="knopf" data-k-tags-knopf aria-expanded="' + !!Z.tagsVerwalten + '">Tags verwalten</button>') + "</div>" +
       (Z.tagsVerwalten && !liste ? tagsPanel() : "") +
       (!liste ? neuBereich() : "") +
-      '<div class="leiste k-leiste"><input type="search" class="suche" data-k-suche placeholder="Name, E-Mail, Firma oder Position" value="' + esc(Z.suche) + '">' +
-        '<select class="k-filter" data-k-filter aria-label="Filter">' + FILTER.map(function (f) {
-          return '<option value="' + f[0] + '"' + (Z.filter === f[0] ? " selected" : "") + ">" + esc(f[1]) + "</option>";
-        }).join("") +
-        (Z.listen.length ? '<optgroup label="Listen">' + Z.listen.map(function (l) {
-          var v = "tag:" + l.liste;
-          return '<option value="' + esc(v) + '"' + (Z.filter === v ? " selected" : "") + ">" + esc(l.liste) + " (" + l.kontakte + ")</option>";
-        }).join("") + "</optgroup>" : "") + "</select></div>" +
+      '<div class="leiste k-leiste">' +
+        (!liste ? '<div class="seg" role="group" aria-label="Ansicht"><button type="button" data-k-ansicht="kontakte" aria-pressed="' + (Z.ansicht !== "firmen") + '">Kontakte' +
+          (Z.facetten ? " <small>" + Z.facetten.gesamt + "</small>" : "") + '</button><button type="button" data-k-ansicht="firmen" aria-pressed="' + (Z.ansicht === "firmen") + '">Firmen' +
+          (Z.facetten ? " <small>" + Z.facetten.firmen + "</small>" : "") + "</button></div>" : "") +
+        '<input type="search" class="suche" data-k-suche placeholder="Suchen: Name, E-Mail, Firma oder Position" value="' + esc(Z.suche) + '">' +
+        '<div class="k-filterort"><button type="button" class="knopf k-fknopf" data-k-fknopf aria-haspopup="true" aria-expanded="' + !!Z.fMenue + '">+ Filter</button>' +
+          '<div data-k-fmenue-ort>' + fMenueHtml() + "</div></div></div>" +
+      '<div class="k-chips" data-k-chips>' + chipsHtml() + "</div>" +
       '<div class="k-auswahlleiste"' + (aus.length ? "" : " hidden") + '><b>' + aus.length + " ausgewählt</b>" +
         '<button type="button" class="knopf knopf--primaer" data-k-aktion="liste">Zu Liste hinzufügen</button>' +
         (liste ? '<button type="button" class="knopf" data-k-aktion="entfernen">Aus „' + esc(liste) + '“ entfernen</button>' : "") +
         '<button type="button" class="li-link" data-k-aktion="aufheben">Auswahl aufheben</button></div>' +
       '<div data-k-panel>' + panel() + "</div>" +
       (Z.meldung ? '<p class="k-meldung">' + esc(Z.meldung) + "</p>" : "") +
-      '<p class="zahlzeile">' + zahlText(Z.liste.length, "Kontakt", "Kontakte") + (Z.liste.length >= 1000 ? " (die ersten 1.000 – Suche oder Filter eingrenzen)" : "") + "</p>" +
+      '<div data-k-ergebnis>' + ergebnisHtml() + "</div>";
+    if (fokus) { var f = wurzel.querySelector("[data-k-suche]"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }
+    var pin = wurzel.querySelector("[data-k-panel] input[data-k-neu]"); if (pin && Z.panel && Z.panel.fokus) { pin.focus(); Z.panel.fokus = false; }
+  }
+  function ergebnisHtml() {
+    var liste = aktuelleListe(), aus = ausgewaehlt(), alle = Z.liste.length && aus.length === Z.liste.length;
+    if (Z.ansicht === "firmen" && !liste) return firmenHtml();
+    return '<p class="zahlzeile">' + zahlText(Z.liste.length, "Kontakt", "Kontakte") + (Z.liste.length >= 1000 ? " (die ersten 1.000 – Suche oder Filter eingrenzen)" : "") + "</p>" +
       (Z.liste.length ? '<div class="karte tabelle-rahmen k-tabelle"><table class="tabelle tabelle--klick k-zeilen">' +
         '<colgroup><col class="k-c-wahl"><col class="k-c-name"><col class="k-c-firma"><col class="k-c-pos"><col class="k-c-status"><col class="k-c-akt"><col class="k-c-menue"></colgroup><thead><tr>' +
         '<th class="k-wahl"><input type="checkbox" data-k-alle-wahl aria-label="Alle auswählen"' + (alle ? " checked" : "") + "></th>" +
@@ -118,9 +221,7 @@
             '<td class="k-menue-spalte"><button type="button" class="k-punkte" data-k-menue="' + id + '" aria-label="Aktionen für ' + esc(name(k)) + '" aria-haspopup="true" aria-expanded="' + (Z.menue === id) + '">⋮</button>' +
               (Z.menue === id ? menue(k, liste) : "") + "</td></tr>";
         }).join("") + "</tbody></table></div>"
-        : '<div class="karte leer">' + (Z.suche || Z.filter ? "Kein Kontakt gefunden." : "Noch keine Kontakte. Sie entstehen automatisch mit jeder Terminbuchung.") + "</div>");
-    if (fokus) { var f = wurzel.querySelector("[data-k-suche]"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }
-    var pin = wurzel.querySelector("[data-k-panel] input[data-k-neu]"); if (pin && Z.panel && Z.panel.fokus) { pin.focus(); Z.panel.fokus = false; }
+        : '<div class="karte leer">' + (Z.suche || Z.filter || filterAktiv() ? "Kein Kontakt gefunden." : "Noch keine Kontakte. Sie entstehen automatisch mit jeder Terminbuchung.") + "</div>");
   }
   /* ---------- Neu aus dem Postfach: externe Absender, die noch kein Kontakt sind ---------- */
   function wannKurz(d) { return d ? new Date(d).toLocaleString("de-DE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "–"; }
@@ -448,6 +549,31 @@
     if (e.target.name !== "lifecycle_stage") return;
     var l = wurzel.querySelector("[data-lost]"); if (l) l.hidden = e.target.value !== "verloren";
   });
+  wurzel.addEventListener("input", function (e) {
+    if (!aktiv || Z.detail) return;
+    var t = e.target;
+    if (t.hasAttribute("data-k-ftext")) { var k = t.getAttribute("data-k-ftext"), v = t.value.trim(); if (v) Z.f[k] = v; else delete Z.f[k]; return filterGeaendert(false); }
+  });
+  wurzel.addEventListener("change", function (e) {
+    if (!aktiv || Z.detail) return;
+    var t = e.target, k;
+    if ((k = t.getAttribute("data-k-fmulti"))) {
+      Z.f[k] = [].slice.call(wurzel.querySelectorAll('[data-k-fmulti="' + k + '"]:checked')).map(function (x) { return x.value; });
+      if (!Z.f[k].length) { delete Z.f[k]; if (k === "signale") delete Z.f.signal_tage; }
+      return filterGeaendert(true);
+    }
+    if ((k = t.getAttribute("data-k-feins"))) { Z.f[k] = t.value; return filterGeaendert(true); }
+    if ((k = t.getAttribute("data-k-fextra"))) { if (t.checked) Z.f[k] = true; else delete Z.f[k]; return filterGeaendert(true); }
+    if (t.hasAttribute("data-k-fzeit")) { if (t.value) Z.f.signal_tage = Number(t.value); else delete Z.f.signal_tage; return filterGeaendert(true); }
+  });
+  document.addEventListener("click", function (e) {
+    // Ziel schon ersetzt (Menü wurde neu gezeichnet) → war ein Klick im Menü
+    if (!aktiv || !Z.fMenue || !e.target.isConnected || e.target.closest(".k-filterort, .k-chips")) return;
+    Z.fMenue = false; Z.fSeite = null; fMenueNeu();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (aktiv && Z.fMenue && e.key === "Escape") { Z.fMenue = false; Z.fSeite = null; fMenueNeu(); var b = wurzel.querySelector("[data-k-fknopf]"); if (b) b.focus(); }
+  });
   wurzel.addEventListener("toggle", function (e) {
     if (aktiv && e.target.hasAttribute && e.target.hasAttribute("data-k-neu-box")) Z.neuOffen = e.target.open;
   }, true);
@@ -494,6 +620,23 @@
         return api("kontakt_loeschen", { contact_id: id }).then(function () { Z.meldung = "„" + name(k) + "“ wurde gelöscht."; delete Z.auswahl[id]; return listeLaden(); }).catch(fehler);
       }
       return;
+    }
+    if ((t = e.target.closest("[data-k-ansicht]"))) { Z.ansicht = t.getAttribute("data-k-ansicht"); Z.auswahl = {}; merken(); return listeLaden(); }
+    if (e.target.closest("[data-k-fknopf]")) { Z.fMenue = !Z.fMenue; Z.fSeite = null; return fMenueNeu(); }
+    if ((t = e.target.closest("[data-k-fseite]"))) {
+      Z.fSeite = Z.fSeite === t.getAttribute("data-k-fseite") ? null : t.getAttribute("data-k-fseite"); fMenueNeu();
+      var ti = wurzel.querySelector("[data-k-ftext]"); if (ti) { ti.focus(); ti.setSelectionRange(ti.value.length, ti.value.length); }
+      return;
+    }
+    if ((t = e.target.closest("[data-k-chip]"))) { Z.fMenue = true; Z.fSeite = t.getAttribute("data-k-chip"); fMenueNeu(); var tc = wurzel.querySelector("[data-k-ftext]"); if (tc) tc.focus(); return; }
+    if ((t = e.target.closest("[data-k-chip-weg]"))) {
+      var weg = t.getAttribute("data-k-chip-weg"); delete Z.f[weg]; if (weg === "signale") delete Z.f.signal_tage; if (weg === "firma_id") Z.firmaName = "";
+      if (Z.fMenue) fMenueNeu();
+      return filterGeaendert(true);
+    }
+    if (e.target.closest("[data-k-filter-leeren]")) { Z.f = {}; Z.firmaName = ""; if (Z.fMenue) fMenueNeu(); return filterGeaendert(true); }
+    if ((t = e.target.closest("tr[data-k-firma]"))) {
+      Z.ansicht = "kontakte"; Z.f = { firma_id: t.getAttribute("data-k-firma") }; Z.firmaName = t.getAttribute("data-name"); merken(); return listeLaden();
     }
     if ((t = e.target.closest("[data-k-uebernehmen]"))) {
       t.disabled = true; t.textContent = "…";

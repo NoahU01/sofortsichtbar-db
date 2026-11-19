@@ -126,6 +126,24 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       if (filter && !/^(newsletter|ohne_position|name_unvollstaendig|herkunft:[a-z_]+|tag:[^\n]{1,60})$/u.test(filter)) throw fehler("unbekannter Filter");
       return ["dashboard_kontakte_liste", { p_suche: textOderLeer(b.suche, 100), p_filter: filter || null }];
     }
+    case "kontakte_suche":
+    case "firmen_liste": {
+      const f = (b.filter && typeof b.filter === "object" ? b.filter : {}) as Record<string, unknown>;
+      const auswahl = (x: unknown, erlaubt: string[]) => (Array.isArray(x) ? x : []).map(String).filter((v) => erlaubt.includes(v)).slice(0, 20);
+      const p: Record<string, unknown> = {
+        suche: textOderLeer(b.suche, 100), name: textOderLeer(f.name, 100), position: textOderLeer(f.position, 100), firma: textOderLeer(f.firma, 100),
+        firma_id: uuidOderNull(f.firma_id), position_leer: f.position_leer === true, name_unvollstaendig: f.name_unvollstaendig === true,
+        herkunft: auswahl(f.herkunft, ["linkedin", "instagram", "facebook", "website", "termin", "postfach", "call", "manuell", "import"]),
+        follower: auswahl(f.follower, ["linkedin", "instagram", "facebook"]),
+        newsletter: f.newsletter === "ja" || f.newsletter === "nein" ? f.newsletter : "",
+        signale: auswahl(f.signale, ["website", "preise", "termin", "call", "mail_ein", "mail_aus", "nl_offen", "nl_klick", "li_reaktion", "li_kommentar", "ig_like", "ig_kommentar"]),
+        signal_tage: [7, 30, 90, 365].includes(Number(f.signal_tage)) ? Number(f.signal_tage) : null,
+        liste: textOderLeer(b.liste, 60),
+      };
+      return [name === "firmen_liste" ? "dashboard_firmen_liste" : "dashboard_kontakte_suche", { p }];
+    }
+    case "kontakte_facetten":
+      return ["dashboard_kontakte_facetten", {}];
     case "kontakt": {
       const id = uuidOderNull(b.contact_id);
       if (!id) throw fehler("contact_id fehlt");
