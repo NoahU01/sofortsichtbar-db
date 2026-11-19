@@ -11,7 +11,8 @@
     { q: "buffer", name: "Buffer", was: "Beiträge und Zahlen von LinkedIn, Facebook, Instagram", takt: "2× täglich", max: 26 },
     { q: "google", name: "Google Search Console", was: "Suchbegriffe, Klicks, Impressionen", takt: "täglich", max: 30 },
     { q: "ga4", name: "Google Analytics 4", was: "Nutzer, Sitzungen, Seitenaufrufe", takt: "täglich", max: 30 },
-    { q: "bing", name: "Bing Webmaster", was: "Suchbegriffe aus Bing", takt: "täglich", max: 30 }
+    { q: "bing", name: "Bing Webmaster", was: "Suchbegriffe aus Bing", takt: "täglich", max: 30 },
+    { q: "transkripte", name: "Call-Transkripte (OneDrive)", was: "Ordner für Meeting-Transkripte (.docx, .vtt, .txt)", takt: "alle 15 Min.", max: 1 }
   ];
   var EINGANG = [
     { q: "website", name: "Website-Tracking", was: "Besuche und Klicks auf sofortsichtbar.de", takt: "laufend" },

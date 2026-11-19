@@ -452,3 +452,7 @@ verify_jwt = false
 [functions.linkedhelper-webhook]
 # Aufruf durch LinkedHelper mit eigenem Schlüssel in der URL, kein JWT.
 verify_jwt = false
+
+[functions.transkripte-import]
+# Aufruf per pg_cron mit eigenem Schlüssel, kein JWT.
+verify_jwt = false
