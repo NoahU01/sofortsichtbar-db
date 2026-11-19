@@ -63,6 +63,11 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       if (!id) throw fehler("call_id fehlt");
       return ["dashboard_call", { p_call_id: id }];
     }
+    case "call_zuordnen": {
+      const id = uuidOderNull(b.call_id);
+      if (!id) throw fehler("call_id fehlt");
+      return ["dashboard_call_zuordnen", { p_call_id: id, p_contact_id: uuidOderNull(b.contact_id) }];
+    }
     case "loeschen": {
       const id = uuidOderNull(b.call_id);
       if (!id) throw fehler("call_id fehlt");
@@ -73,7 +78,8 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       const transkript = textOderLeer(c.transkript, 500_000).trim();
       if (!transkript) throw fehler("Transkript fehlt");
       if (c.aufnahme_zugestimmt !== true) throw fehler("Zustimmung zur Aufnahme fehlt");
-      if (!uuidOderNull(c.contact_id) && !textOderLeer(c.email, 200).includes("@") && !textOderLeer(c.booking_uid, 100)) {
+      // Neue Calls brauchen einen Kontakt; bestehende (z. B. offene aus dem Import) dürfen ohne bearbeitet werden
+      if (!uuidOderNull(c.call_id) && !uuidOderNull(c.contact_id) && !textOderLeer(c.email, 200).includes("@") && !textOderLeer(c.booking_uid, 100)) {
         throw fehler("Kontakt fehlt (Termin, bestehender Kontakt oder E-Mail)");
       }
       return ["dashboard_call_speichern", {

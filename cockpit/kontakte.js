@@ -427,29 +427,41 @@
     var klicks = n("email_click"), nlEin = n("email_sent"), ab = n("email_unsubscribe");
     var li = n("linkedin_reaction"), folgt = n("linkedin_follow"), liK = n("linkedin_comment"), auf = n("email_open");
     var igL = n("instagram_like"), igK = n("instagram_comment"), igF = n("instagram_follow");
+    var bounce = n("email_bounce").filter(function (e) { return (e.props || {}).hard; }), spam = n("email_complaint");
+    function zeileHtml(ic, titel, wert, wann, klasse) { return '<li' + (klasse ? ' class="' + klasse + '"' : "") + '><span class="k-sig-ic">' + icon(ic) + '</span><span class="k-sig-t">' + titel + '</span><b>' + wert + "</b><small>" + (wann || "") + "</small></li>"; }
+    function neueste(l) { return l.slice().sort(function (a, b) { return a.zeit < b.zeit ? 1 : -1; }); }
+    var social = neueste(li.concat(liK, igL, igK));
+    var termineAlle = neueste(termine.concat(kal));
+    var haupt = [
+      zeileHtml("web", "Website-Besuche", web.length ? (Object.keys(sitzungen).length || 1) : "–", zuletzt(web)),
+      zeileHtml("daumen", "Interaktion Social Media", social.length || "–", zuletzt(social)),
+      zeileHtml("termin", "Termine gebucht", termineAlle.length || "–", zuletzt(termineAlle)),
+      zeileHtml("call", "Calls", calls.length || "–", zuletzt(calls))];
+    var warn = [];
+    if (ab.length) warn.push(zeileHtml("weg", "Newsletter abbestellt", "ja", zuletzt(ab), "k-sig-warn"));
+    if (spam.length) warn.push(zeileHtml("warn", "Newsletter als Spam markiert", "ja", zuletzt(spam), "k-sig-warn"));
+    if (bounce.length) warn.push(zeileHtml("warn", "E-Mail-Adresse unzustellbar", "ja", zuletzt(bounce), "k-sig-warn"));
     var z = [];
-    function zeile(ic, titel, wert, wann) { z.push('<li><span class="k-sig-ic">' + icon(ic) + '</span><span class="k-sig-t">' + titel + '</span><b>' + wert + "</b>" + (wann ? '<small>' + wann + "</small>" : "<small></small>") + "</li>"); }
-    if (web.length) zeile("web", "Website-Besuche", Object.keys(sitzungen).length || 1, zuletzt(web));
+    function zeile(ic, titel, wert, wann) { z.push(zeileHtml(ic, titel, wert, wann)); }
     if (seiten.length) zeile("web", "Seiten angesehen", seiten.length, "");
     if (preise.length) zeile("preis", "Preise angesehen", "ja", zuletzt(preise));
-    if (termine.length) zeile("termin", "Termine gebucht", termine.length, zuletzt(termine));
+    if (termine.length) zeile("termin", "Termine über die Website", termine.length, zuletzt(termine));
     if (kal.length) zeile("termin", "Termine im Kalender", kal.length, zuletzt(kal));
-    if (calls.length) zeile("call", "Calls", calls.length, zuletzt(calls));
     if (ein.length) zeile("mailEin", "Mails erhalten", ein.length, zuletzt(ein));
     if (aus.length) zeile("mailAus", "Mails gesendet", aus.length, zuletzt(aus));
     if (nlEin.length) zeile("news", "Newsletter bekommen", nlEin.length, zuletzt(nlEin));
     if (auf.length) zeile("auge", "Newsletter geöffnet", auf.length, zuletzt(auf));
     if (klicks.length) zeile("klick", "Newsletter-Klicks", klicks.length, zuletzt(klicks));
-    if (ab.length) zeile("weg", "Newsletter abbestellt", "ja", zuletzt(ab));
     if (li.length) zeile("daumen", "LinkedIn-Reaktionen", li.length, zuletzt(li));
     if (liK.length) zeile("sprech", "LinkedIn-Kommentare", liK.length, zuletzt(liK));
-    if (igF.length) zeile("folgen", "Folgt auf Instagram", "ja", "");
+    if (folgt.length) zeile("folgen", "Folgt der Firmenseite", "seit", new Date(folgt[0].zeit).toLocaleDateString("de-DE", { month: "short", year: "numeric" }));
     if (igL.length) zeile("daumen", "Instagram-Likes", igL.length, zuletzt(igL));
     if (igK.length) zeile("sprech", "Instagram-Kommentare", igK.length, zuletzt(igK));
-    if (folgt.length) zeile("folgen", "Folgt der Firmenseite", "seit", new Date(folgt[0].zeit).toLocaleDateString("de-DE", { month: "short", year: "numeric" }));
+    if (igF.length) zeile("folgen", "Folgt auf Instagram", "ja", "");
     var stand = !k ? "" : k.newsletter_erlaubt ? '<span class="pille pille--gut">Newsletter erlaubt</span>' : '<span class="pille">kein Newsletter</span>';
     return '<section class="karte panel"><div class="panel-kopf"><h2>Signale</h2>' + stand + "</div>" +
-      (z.length ? '<ul class="k-signale">' + z.join("") + "</ul>" : '<p class="panel-leer">Noch keine Signale.</p>') + "</section>";
+      '<ul class="k-signale">' + warn.join("") + haupt.join("") + "</ul>" +
+      (z.length ? '<details class="k-sig-mehr"><summary>Alle Signale <small>' + z.length + "</small></summary>" + '<ul class="k-signale">' + z.join("") + "</ul></details>" : "") + "</section>";
   }
 
   // Ereignisse in Einträge bündeln: alles einer Website-Sitzung wird ein Eintrag.
@@ -545,7 +557,7 @@
       text = esc([p.beginn ? zeit(p.beginn) + (p.ende ? "–" + new Date(p.ende).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "") : "",
                   p.ort, p.online ? "online" : "", p.postfach ? "Kalender " + p.postfach : ""].filter(Boolean).join(" · "));
     }
-    else if (e.event_name === "call_recorded") { titel = "Call: " + esc(p.titel || "Gespräch"); klasse = "tl--call"; text = p.call_id ? '<a href="#calls/' + esc(p.call_id) + '" data-call="' + esc(p.call_id) + '">Protokoll öffnen</a>' : ""; }
+    else if (e.event_name === "call_recorded") { titel = "Call: " + esc(p.titel || "Gespräch"); klasse = "tl--call"; text = p.call_id ? '<button type="button" class="li-link" data-call="' + esc(p.call_id) + '">Protokoll ansehen</button>' : ""; }
     else if (e.event_name === "linkedin_follow") {
       titel = "Folgt der Firmenseite auf LinkedIn"; klasse = "tl--linkedin";
       text = p.nur_monat ? '<small class="leise">laut Follower-Liste ist nur der Monat bekannt</small>' : "";
@@ -694,7 +706,8 @@
         if (!confirm("Firma „" + fn + "“ löschen?" + (kn ? " Die " + kn + " zugehörigen Kontakte bleiben erhalten." : ""))) return;
         return api("firma_loeschen", { company_id: Z.firma.firma.company_id }).then(function () { Z.ansicht = "firmen"; merken(); C.oeffne("kontakte"); }).catch(fehler);
       }
-      return;
+      // Verlauf: Protokoll-Pop-up und Aufklappen von Besuchen wie in der Kontaktkarte
+      if (!e.target.closest("[data-call], [data-tl]")) return;
     }
     if ((t = e.target.closest("[data-k-gruppe]"))) { var gg = t.getAttribute("data-k-gruppe"); Z.gruppenOffen[gg] = !Z.gruppenOffen[gg]; return ergebnisNeu(); }
     if ((t = e.target.closest("[data-k-ansicht]"))) { Z.ansicht = t.getAttribute("data-k-ansicht"); Z.auswahl = {}; merken(); return listeLaden(); }
@@ -769,7 +782,8 @@
     if (e.target.closest("[data-k-alle]")) { e.preventDefault(); Z.filter = ""; Z.meldung = ""; history.pushState(null, "", "#kontakte"); return listeLaden(); }
     var tr = e.target.closest("tr[data-kontakt]"); if (tr) return oeffneKontakt(tr);
     var z = e.target.closest("[data-zurueck]"); if (z) { e.preventDefault(); return C.oeffne("kontakte"); }
-    var c = e.target.closest("[data-call]"); if (c) { e.preventDefault(); return C.oeffne("calls", c.getAttribute("data-call")); }
+    var c = e.target.closest("[data-call]");
+    if (c) { e.preventDefault(); return C.callPopup(c.getAttribute("data-call"), function () { if (Z.detail) detailLaden(Z.detail.kontakt.contact_id); else if (Z.firma) firmaLaden(Z.firma.firma.company_id); }); }
     var t = e.target.closest("[data-tl]");
     if (t) { var k = t.getAttribute("data-tl"); Z.offen[k] = !Z.offen[k]; return detailZeichnen(); }
     if (e.target.closest("[data-k-loeschen]")) {

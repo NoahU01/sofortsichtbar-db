@@ -633,3 +633,36 @@ span.k-chip-text { cursor: default; }
 
 /* Seiten-Untertitel ausgeblendet (Noah, 19.11.); Detailseiten behalten ihre Info-Zeile */
 .kopf h1 + p.leise:not(.kopf-info) { display: none; }
+
+/* ---------- Call-Protokoll als Pop-up ---------- */
+dialog.cp { width: min(820px, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); padding: 0; border: 0; border-radius: 14px; background: var(--panel); color: var(--ink);
+  box-shadow: 0 24px 60px rgba(17, 25, 54, .28); }
+dialog.cp::backdrop { background: rgba(17, 25, 54, .45); }
+.cp-form { display: grid; gap: .9rem; padding: 1.3rem 1.5rem 1.2rem; }
+.cp-kopf { display: flex; align-items: flex-start; gap: 1rem; }
+.cp-kopf > div { flex: 1; min-width: 0; }
+.cp-ueber { margin: 0 0 .2rem; font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
+.cp-titel { width: 100%; border: 0; border-bottom: 1px solid transparent; padding: .1rem 0; font: inherit; font-size: 1.25rem; font-weight: 600; color: var(--ink); background: transparent; }
+.cp-titel:hover, .cp-titel:focus { border-bottom-color: var(--line); outline: none; }
+.cp-x { all: unset; cursor: pointer; font-size: 1.6rem; line-height: 1; color: var(--ink-3); padding: 0 .3rem; }
+.cp-x:hover { color: var(--ink); }
+.cp-reihe { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: .8rem; align-items: start; }
+.cp-wer { display: flex; align-items: center; gap: .6rem; min-height: 2.4rem; font-size: .9rem; }
+.cp-form textarea[name=transkript] { font-family: inherit; font-size: .86rem; line-height: 1.55; min-height: 14rem; }
+.cp-fuss { display: flex; align-items: center; gap: .5rem; }
+.cp-raum { flex: 1; }
+.cp-laedt { padding: 2rem; margin: 0; color: var(--ink-3); }
+@media (max-width: 640px) { .cp-reihe { grid-template-columns: 1fr; } .cp-form { padding: 1rem; } }
+
+/* ---------- Calls: offen / vergangen ---------- */
+.calls-offen { border-left: 3px solid var(--accent-hell); }
+.panel .calls { margin: 0; padding: 0; box-shadow: none; }
+.calls-mehr > summary { cursor: pointer; padding: .7rem 0 .2rem; font-size: .86rem; color: var(--accent); font-weight: 500; }
+.call-kopf .knopf--klein { margin-left: .4rem; }
+
+/* ---------- Signale: Hauptsignale + Aufklapper ---------- */
+.k-sig-warn .k-sig-t, .k-sig-warn b { color: var(--bad-ink); }
+.k-sig-warn .k-sig-ic { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad-ink); }
+.k-sig-mehr { margin-top: .4rem; border-top: 1px solid var(--line-soft); }
+.k-sig-mehr > summary { cursor: pointer; padding: .6rem 0 .2rem; font-size: .84rem; font-weight: 500; color: var(--accent); }
+.k-sig-mehr > summary small { font-family: "IBM Plex Mono", monospace; font-size: .7rem; color: var(--ink-3); margin-left: .3rem; }

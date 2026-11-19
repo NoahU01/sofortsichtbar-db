@@ -19,7 +19,7 @@
   function start(callId) {
     aktiv = true; Z.form = null;
     wurzel.innerHTML = '<div class="laedt">Lädt …</div>';
-    liste().then(function () { if (callId) oeffnen(callId); }).catch(fehler);
+    liste().then(function () { if (callId) C.callPopup(callId, liste); }).catch(fehler);
   }
   function stop() { aktiv = false; }
   function liste() {
@@ -31,41 +31,36 @@
   }
 
   /* ---------- Darstellung ---------- */
+  var SICHTBAR = 5;   // vergangene Calls: so viele direkt, der Rest im Aufklapper
   function zeichnen() {
     var fokus = document.activeElement && document.activeElement.hasAttribute("data-suche");
+    var offen = Z.calls.filter(function (c) { return !c.contact_id; }), fertig = Z.calls.filter(function (c) { return c.contact_id; });
     wurzel.innerHTML =
-      '<div class="kopf"><div><h1>Calls</h1><p class="leise">Gesprächsprotokolle aus ChatGPT – zentral abgelegt und durchsuchbar</p></div>' +
+      '<div class="kopf"><div><h1>Calls</h1></div>' +
         (Z.form ? "" : '<button type="button" class="knopf knopf--primaer" data-neu>+ Protokoll hochladen</button>') + "</div>" +
       (Z.form ? formular() :
         '<div class="leiste"><input type="search" class="suche" data-suche placeholder="In allen Gesprächen suchen – z. B. Bestandsübertragung" value="' + esc(Z.suche) + '"></div>' +
-        '<p class="zahlzeile">' + (Z.suche ? Z.calls.length + " Treffer" : Z.calls.length + (Z.calls.length === 1 ? " Gespräch" : " Gespräche")) + "</p>" +
-        (Z.calls.length ? '<ul class="calls karte">' + Z.calls.map(zeile).join("") + "</ul>"
-          : '<div class="karte leer">' + (Z.suche ? "Nichts gefunden." : "Noch keine Gespräche abgelegt.") + "</div>"));
+        (Z.suche
+          ? '<p class="zahlzeile">' + Z.calls.length + " Treffer</p>" + (Z.calls.length ? '<ul class="calls karte">' + Z.calls.map(zeile).join("") + "</ul>" : '<div class="karte leer">Nichts gefunden.</div>')
+          : (offen.length ? '<section class="karte panel calls-offen"><div class="panel-kopf"><h2>Offen</h2><span class="leise">' + offen.length + (offen.length === 1 ? " Call konnte" : " Calls konnten") + " keinem Kontakt zugeordnet werden</span></div>" +
+                '<ul class="calls">' + offen.map(zeile).join("") + "</ul></section>" : "") +
+            '<section class="karte panel"><div class="panel-kopf"><h2>Vergangene Calls</h2><span class="leise">' + fertig.length + (fertig.length === 1 ? " Gespräch" : " Gespräche") + "</span></div>" +
+              (fertig.length ? '<ul class="calls">' + fertig.slice(0, SICHTBAR).map(zeile).join("") + "</ul>" +
+                (fertig.length > SICHTBAR ? '<details class="calls-mehr"><summary>Alle ' + fertig.length + " anzeigen</summary><ul class=\"calls\">" + fertig.slice(SICHTBAR).map(zeile).join("") + "</ul></details>" : "")
+                : '<p class="panel-leer">Noch keine zugeordneten Gespräche.</p>') + "</section>"));
     if (fokus) { var f = wurzel.querySelector("[data-suche]"); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }
   }
 
   function zeile(c) {
-    var auf = Z.offen === c.call_id, d = Z.detail[c.call_id];
-    return '<li class="call' + (auf ? " call--auf" : "") + '">' +
-      '<button type="button" class="call-kopf" data-auf="' + c.call_id + '" aria-expanded="' + auf + '">' +
+    return '<li class="call"><button type="button" class="call-kopf" data-call-auf="' + c.call_id + '">' +
         '<span class="call-datum">' + datum(c.stattgefunden_am) + "</span>" +
-        '<span class="call-wer"><b>' + esc(c.titel || "Gespräch") + "</b><small>" + esc(c.name || c.email || "ohne Kontakt") + "</small>" +
+        '<span class="call-wer"><b>' + esc(c.titel || "Gespräch") + "</b><small>" + esc(c.name || c.email || "noch kein Kontakt") + "</small>" +
           (Z.suche && c.ausschnitt ? '<small class="ausschnitt">… ' + markiert(c.ausschnitt) + " …</small>"
            : c.zusammenfassung ? '<small class="ausschnitt">' + esc(c.zusammenfassung) + "</small>" : "") +
         "</span>" +
-        '<span class="pille">' + esc((c.hochgeladen_von || "").split("@")[0]) + "</span>" +
-      "</button>" +
-      (auf ? '<div class="call-det">' + (d ? detail(d) : '<p class="meta">Lädt …</p>') + "</div>" : "") +
-      "</li>";
-  }
-
-  function detail(d) {
-    return '<p class="meta">' + esc(zeit(d.stattgefunden_am)) + (d.email ? ' · <a href="mailto:' + esc(d.email) + '">' + esc(d.email) + "</a>" : "") +
-        " · hochgeladen von " + esc(d.hochgeladen_von) + "</p>" +
-      (d.zusammenfassung ? '<div class="block"><p class="flabel">Zusammenfassung</p>' + absaetze(d.zusammenfassung) + "</div>" : "") +
-      '<details class="transkript"' + (d.zusammenfassung ? "" : " open") + "><summary>Transkript · " + d.transkript.length.toLocaleString("de-DE") + " Zeichen</summary>" + absaetze(d.transkript) + "</details>" +
-      '<div class="knoepfe"><button type="button" class="knopf" data-bearbeiten="' + d.call_id + '">Bearbeiten</button>' +
-        '<button type="button" class="knopf knopf--gefahr" data-loeschen="' + d.call_id + '">Löschen</button></div>';
+        '<span class="pille">' + esc(c.quelle === "sharepoint" ? "Ordner" : (c.hochgeladen_von || "").split("@")[0]) + "</span>" +
+        (c.contact_id ? "" : '<span class="knopf knopf--klein knopf--primaer">Zuordnen</span>') +
+      "</button></li>";
   }
 
   /* ---------- Formular ---------- */
@@ -141,7 +136,7 @@
       aufnahme_zugestimmt: true   // beim Bearbeiten bereits bestätigt; die Datenbank lässt nichts anderes zu
     } }).then(function (id) {
       Z.form = null; delete Z.detail[id]; Z.suche = "";
-      return liste().then(function () { oeffnen(id); });
+      return liste().then(function () { C.callPopup(id, liste); });
     }).catch(function (e) { knopf.disabled = false; knopf.textContent = "Speichern"; formFehler(e.message); });
   }
 
@@ -183,6 +178,7 @@
     }
   });
   wurzel.addEventListener("click", function (e) {
+    if (aktiv && !Z.form) { var cz = e.target.closest("[data-call-auf]"); if (cz) return C.callPopup(cz.getAttribute("data-call-auf"), liste); }
     if (!aktiv) return;
     var b = e.target.closest("button"); if (!b) return;
     if (b.hasAttribute("data-neu")) return neuesFormular();
