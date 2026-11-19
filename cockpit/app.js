@@ -1,8 +1,7 @@
 /* Cockpit · sofort sichtbar – Anmeldung, Datenzugriff, Navigation.
 
-   Anmeldung: Login-Link per E-Mail (Supabase Auth dieses Projekts). Neue
-   Konten entstehen nicht von selbst – nur wer angelegt ist, bekommt einen
-   Link. Gelesen und geschrieben wird ausschließlich über die Edge Function
+   Anmeldung: E-Mail und Passwort (Supabase Auth dieses Projekts). Konten
+   legt scripts/zugang-anlegen.sh an – niemand kann sich selbst registrieren. Gelesen und geschrieben wird ausschließlich über die Edge Function
    `dashboard`; die prüft das Token und die Freigabeliste core.dashboard_zugang.
    Der Schlüssel unten ist öffentlich und ohne Login wertlos. */
 (function () {
@@ -47,19 +46,18 @@
 
   $("[data-login-form]").addEventListener("submit", function (e) {
     e.preventDefault();
-    var email = e.target.email.value.trim().toLowerCase();
+    var email = e.target.email.value.trim().toLowerCase(), passwort = e.target.passwort.value;
     var knopf = e.target.querySelector("button"), m = $("[data-login-meldung]");
-    knopf.disabled = true; m.textContent = "Wird gesendet …";
-    sb.auth.signInWithOtp({ email: email, options: { shouldCreateUser: false, emailRedirectTo: location.origin } })
-      .then(function (r) {
-        knopf.disabled = false;
-        if (r.error) {
-          m.textContent = /signups not allowed|not found|Signups/i.test(r.error.message)
-            ? "Für diese Adresse gibt es kein Konto." : "Das hat nicht geklappt: " + r.error.message;
-          return;
-        }
-        m.textContent = "Link ist unterwegs – bitte Postfach prüfen.";
-      });
+    knopf.disabled = true; m.textContent = "Anmelden …";
+    sb.auth.signInWithPassword({ email: email, password: passwort }).then(function (r) {
+      knopf.disabled = false;
+      if (r.error) {
+        m.textContent = /invalid login|invalid_credentials/i.test(r.error.message) ? "E-Mail oder Passwort stimmt nicht." : "Das hat nicht geklappt: " + r.error.message;
+        return;
+      }
+      e.target.passwort.value = "";
+      m.textContent = "";   // weiter geht es über onAuthStateChange (SIGNED_IN)
+    });
   });
 
   $("[data-abmelden]").addEventListener("click", function () { sb.auth.signOut().then(function () { zeigeLogin(); }); });

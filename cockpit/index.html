@@ -20,9 +20,12 @@
     <h1>Cockpit</h1>
     <p class="leise">sofort sichtbar · interne Datenbank</p>
     <label class="feld">E-Mail
-      <input type="email" name="email" required autocomplete="email" placeholder="name@firma.de">
+      <input type="email" name="email" required autocomplete="username" placeholder="name@firma.de">
     </label>
-    <button type="submit" class="knopf knopf--primaer">Login-Link schicken</button>
+    <label class="feld">Passwort
+      <input type="password" name="passwort" required autocomplete="current-password">
+    </label>
+    <button type="submit" class="knopf knopf--primaer">Anmelden</button>
     <p class="login-meldung" data-login-meldung role="status"></p>
   </form>
 </div>
