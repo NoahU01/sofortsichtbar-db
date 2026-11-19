@@ -142,6 +142,29 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       };
       return [name === "firmen_liste" ? "dashboard_firmen_liste" : "dashboard_kontakte_suche", { p }];
     }
+    case "firma": {
+      const id = uuidOderNull(b.company_id);
+      if (!id) throw fehler("company_id fehlt");
+      return ["dashboard_firma", { p_company_id: id }];
+    }
+    case "firma_speichern": {
+      const f = (b.firma && typeof b.firma === "object" ? b.firma : {}) as Record<string, unknown>;
+      const id = uuidOderNull(f.company_id);
+      if (!id) throw fehler("company_id fehlt");
+      return ["dashboard_firma_speichern", { p: { company_id: id, name: textOderLeer(f.name, 200), gruppe: textOderLeer(f.gruppe, 80),
+        domain: textOderLeer(f.domain, 200), telefon: textOderLeer(f.telefon, 50), ort: textOderLeer(f.ort, 100), notizen: textOderLeer(f.notizen, 5000) }, p_von: email }];
+    }
+    case "firma_loeschen": {
+      const id = uuidOderNull(b.company_id);
+      if (!id) throw fehler("company_id fehlt");
+      return ["dashboard_firma_loeschen", { p_company_id: id }];
+    }
+    case "kontakte_loeschen": {
+      const ids = (Array.isArray(b.contact_ids) ? b.contact_ids : []).map(uuidOderNull).filter(Boolean).slice(0, 1000);
+      if (!ids.length) throw fehler("keine Kontakte gewählt");
+      if (b.bestaetigt !== true) throw fehler("Löschen nicht bestätigt");
+      return ["dashboard_kontakte_loeschen", { p_ids: ids }];
+    }
     case "kontakte_facetten":
       return ["dashboard_kontakte_facetten", {}];
     case "kontakt": {
@@ -300,7 +323,7 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       const id = uuidOderNull(b.person_id);
       if (!id) throw fehler("person_id fehlt");
       const was = textOderLeer(b.was, 20);
-      if (!["zuordnen", "loesen", "ignorieren", "zurueckholen", "kontakt_anlegen"].includes(was)) throw fehler("unbekannte Aktion");
+      if (!["zuordnen", "loesen", "ignorieren", "zurueckholen", "kontakt_anlegen", "firma_anlegen"].includes(was)) throw fehler("unbekannte Aktion");
       const kontakt = uuidOderNull(b.contact_id);
       if (was === "zuordnen" && !kontakt) throw fehler("contact_id fehlt");
       return ["dashboard_instagram_person", { p_person_id: id, p_aktion: was, p_contact_id: kontakt }];

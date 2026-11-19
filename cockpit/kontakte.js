@@ -5,7 +5,7 @@
   "use strict";
   var C = window.cockpit, api = C.api, esc = C.esc, wurzel = C.main;
   var Z = { liste: [], listen: [], suche: "", filter: "", detail: null, offen: {}, auswahl: {}, menue: null, panel: null, meldung: "", neu: [], neuOffen: false,
-            ansicht: "kontakte", f: {}, fMenue: false, fSeite: null, facetten: null, firmen: [], firmaName: "" };
+            ansicht: "kontakte", f: {}, fMenue: false, fSeite: null, facetten: null, firmen: [], firmaName: "", gruppenOffen: {}, firma: null };
   try { var gemerkt = JSON.parse(localStorage.getItem("cockpit.kontakte.filter") || "null"); if (gemerkt) { Z.f = gemerkt.f || {}; Z.ansicht = gemerkt.ansicht || "kontakte"; Z.firmaName = gemerkt.firmaName || ""; } } catch (e) {}
   function merken() { try { localStorage.setItem("cockpit.kontakte.filter", JSON.stringify({ f: Z.f, ansicht: Z.ansicht, firmaName: Z.firmaName })); } catch (e) {} }
 
@@ -21,7 +21,6 @@
     { k: "signale", label: "Signale", typ: "multi", optionen: [["website", "Website besucht"], ["preise", "Preise angesehen"], ["termin", "Termin"], ["call", "Call"],
         ["mail_ein", "Mail erhalten"], ["mail_aus", "Mail gesendet"], ["nl_offen", "Newsletter geöffnet"], ["nl_klick", "Newsletter geklickt"],
         ["li_reaktion", "LinkedIn-Reaktion"], ["li_kommentar", "LinkedIn-Kommentar"], ["ig_like", "Instagram-Like"], ["ig_kommentar", "Instagram-Kommentar"]] },
-    { k: "liste", label: "Liste", typ: "liste" }
   ];
   function fdef(k) { return FDEF.filter(function (d) { return d.k === k; })[0]; }
   function filterAktiv() { return Object.keys(Z.f).some(function (k) { var v = Z.f[k]; return Array.isArray(v) ? v.length : !!v; }); }
@@ -84,23 +83,40 @@
     merken(); clearTimeout(filterTimer);
     filterTimer = setTimeout(function () { listeLaden(true); }, sofort ? 0 : 250);
   }
+  var FOLLOWER_NAME = { linkedin: "LinkedIn", instagram: "Instagram", facebook: "Facebook" };
   function firmenHtml() {
     if (!Z.firmen.length) return '<div class="karte leer">' + (filterAktiv() || Z.suche ? "Keine Firma passt zu den Filtern." : "Noch keine Firmen.") + "</div>";
-    return '<p class="zahlzeile">' + zahlText(Z.firmen.length, "Firma", "Firmen") + "</p>" +
-      '<div class="karte tabelle-rahmen"><table class="tabelle tabelle--klick k-firmen"><thead><tr><th>Firma</th><th class="n">Kontakte</th><th>Follower</th><th>Herkunft</th><th>Letzte Aktivität</th></tr></thead><tbody>' +
-      Z.firmen.map(function (f) {
-        return '<tr data-k-firma="' + f.company_id + '" data-name="' + esc(f.name) + '" tabindex="0"><td><b>' + esc(f.name) + "</b>" + (f.domain ? '<small class="k-unter">' + esc(f.domain) + "</small>" : "") + "</td>" +
-          '<td class="n">' + (filterAktiv() && f.treffer !== f.kontakte ? f.treffer + ' <small class="leise">von ' + f.kontakte + "</small>" : f.kontakte) + "</td>" +
-          "<td>" + (f.follower || []).map(function (x) { return '<span class="pille">' + esc({ linkedin: "LinkedIn", instagram: "Instagram", facebook: "Facebook" }[x] || x) + "</span>"; }).join(" ") + "</td>" +
-          "<td>" + esc((f.herkunft || []).map(function (h) { return HERKUNFT[h] || h; }).join(", ")) + "</td><td>" + relativ(f.letzte_aktivitaet) + "</td></tr>";
-      }).join("") + "</tbody></table></div>";
+    var gruppen = {}, reihe = [];
+    Z.firmen.forEach(function (f) { var g = f.gruppe || "Sonstige"; if (!gruppen[g]) { gruppen[g] = []; reihe.push(g); } gruppen[g].push(f); });
+    reihe.sort(function (a, b) { return a === "Sonstige" ? 1 : b === "Sonstige" ? -1 : gruppen[b].length - gruppen[a].length || a.localeCompare(b); });
+    var suchModus = filterAktiv() || !!Z.suche;
+    return '<p class="zahlzeile">' + zahlText(Z.firmen.length, "Firma", "Firmen") + " in " + zahlText(reihe.length, "Gruppe", "Gruppen") + "</p>" +
+      '<div class="karte k-gruppen">' + reihe.map(function (g) {
+        var l = gruppen[g], offen = suchModus || !!Z.gruppenOffen[g];
+        var kontakte = l.reduce(function (s, f) { return s + (f.kontakte || 0); }, 0);
+        var follower = l.filter(function (f) { return f.follower && f.follower.length; }).length;
+        var letzte = l.map(function (f) { return f.letzte_aktivitaet; }).filter(Boolean).sort().pop();
+        return '<section class="k-gruppe' + (offen ? " k-gruppe--offen" : "") + '"><button type="button" class="k-gruppe-kopf" data-k-gruppe="' + esc(g) + '" aria-expanded="' + offen + '">' +
+            '<span class="k-gruppe-name">' + esc(g) + "</span>" +
+            '<span class="k-gruppe-zahl"><b>' + l.length + "</b> " + (l.length === 1 ? "Büro" : "Büros") + "</span>" +
+            '<span class="k-gruppe-zahl"><b>' + kontakte + "</b> Kontakte</span>" +
+            '<span class="k-gruppe-zahl"><b>' + follower + "</b> mit Follower</span>" +
+            '<span class="k-gruppe-zahl leise">' + (letzte ? relativ(letzte) : "–") + "</span></button>" +
+          (offen ? '<table class="tabelle tabelle--klick k-firmen"><thead><tr><th>Büro / Firma</th><th class="n">Kontakte</th><th>Follower</th><th>Letzte Aktivität</th></tr></thead><tbody>' +
+            l.map(function (f) {
+              return '<tr data-k-firma="' + f.company_id + '" tabindex="0"><td><b>' + esc(f.name) + "</b>" + (f.domain || f.ort ? '<small class="k-unter">' + esc([f.domain, f.ort].filter(Boolean).join(" · ")) + "</small>" : "") + "</td>" +
+                '<td class="n">' + (f.kontakte ? (filterAktiv() && f.treffer && f.treffer !== f.kontakte ? f.treffer + ' <small class="leise">von ' + f.kontakte + "</small>" : f.kontakte) : '<span class="leise">–</span>') + "</td>" +
+                "<td>" + (f.follower || []).map(function (x) { return '<span class="pille">' + esc(FOLLOWER_NAME[x] || x) + "</span>"; }).join(" ") + "</td>" +
+                "<td>" + relativ(f.letzte_aktivitaet) + "</td></tr>";
+            }).join("") + "</tbody></table>" : "") + "</section>";
+      }).join("") + "</div>";
   }
   var aktiv = false;
 
   var STATUS = { lead: "Lead", mql: "MQL", sql: "SQL", kunde: "Kunde", verloren: "Verloren" };
   var PAKET = { "": "–", fokus: "Fokus", team: "Team", komplett: "Komplett" };
   var HERKUNFT = { "": "–", termin: "Terminbuchung", postfach: "Postfach", call: "Call", website: "Website",
-                   linkedin_follower: "LinkedIn-Follower", linkedin_reaktion: "LinkedIn-Reaktion", manuell: "Manuell", import: "Import" };
+                   linkedin_follower: "LinkedIn-Follower", linkedin_reaktion: "LinkedIn-Reaktion", instagram: "Instagram", manuell: "Manuell", import: "Import" };
   var GRUNDLAGE = { "": "– bitte wählen –", einwilligung: "Einwilligung (z. B. Formular, DOI)", bestandskunde: "Bestandskunde" };
   var FILTER = [["", "Alle Kontakte"], ["newsletter", "Newsletter erlaubt"], ["ohne_position", "Position fehlt"], ["name_unvollstaendig", "Name unvollständig"],
                 ["herkunft:linkedin_follower", "Herkunft: LinkedIn-Follower"], ["herkunft:linkedin_reaktion", "Herkunft: LinkedIn-Reaktion"],
@@ -146,6 +162,9 @@
     wurzel.innerHTML = '<div class="laedt">Lädt …</div>';
     // #kontakte/liste:<name> öffnet die Liste
     if (id && id.indexOf("liste:") === 0) { Z.filter = "tag:" + decodeURIComponent(id.slice(6)); Z.suche = ""; id = null; }
+    else if (!id) Z.filter = "";
+    Z.firma = null;
+    if (id && id.indexOf("firma:") === 0) return firmaLaden(id.slice(6));
     id ? detailLaden(id) : listeLaden();
   }
   function aktuelleListe() { return Z.filter.indexOf("tag:") === 0 ? Z.filter.slice(4) : null; }
@@ -177,13 +196,11 @@
     var liste = aktuelleListe(), info = liste && Z.listen.filter(function (l) { return l.liste === liste; })[0];
     var aus = ausgewaehlt(), alle = Z.liste.length && aus.length === Z.liste.length;
     wurzel.innerHTML =
-      (liste ? '<p class="zurueck"><a href="#kontakte" data-k-alle>← Alle Kontakte</a></p>' : "") +
+      (liste ? '<p class="zurueck"><a href="#listen">← Alle Listen</a></p>' : "") +
       '<div class="kopf"><div><h1>' + (liste ? "Liste „" + esc(liste) + "“" : "Kontakte") + '</h1><p class="leise">' +
         (liste ? zahlText(info ? info.kontakte : Z.liste.length, "Kontakt", "Kontakte") + " · " + zahlText(info ? info.erlaubt : 0, "darf", "dürfen") + " den Newsletter bekommen"
-               : "Alle Personen aus Terminbuchungen, Postfach, Calls, LinkedIn und Listen") + "</p></div>" +
-        (liste ? '<button type="button" class="knopf knopf--gefahr" data-k-liste-loeschen>Liste auflösen</button>'
-               : '<button type="button" class="knopf" data-k-tags-knopf aria-expanded="' + !!Z.tagsVerwalten + '">Tags verwalten</button>') + "</div>" +
-      (Z.tagsVerwalten && !liste ? tagsPanel() : "") +
+               : "Alle Personen aus Terminbuchungen, Postfach, Calls, LinkedIn, Instagram und Listen") + "</p></div>" +
+        (liste ? '<button type="button" class="knopf knopf--gefahr" data-k-liste-loeschen>Liste auflösen</button>' : "") + "</div>" +
       (!liste ? neuBereich() : "") +
       '<div class="leiste k-leiste">' +
         (!liste ? '<div class="seg" role="group" aria-label="Ansicht"><button type="button" data-k-ansicht="kontakte" aria-pressed="' + (Z.ansicht !== "firmen") + '">Kontakte' +
@@ -196,6 +213,7 @@
       '<div class="k-auswahlleiste"' + (aus.length ? "" : " hidden") + '><b>' + aus.length + " ausgewählt</b>" +
         '<button type="button" class="knopf knopf--primaer" data-k-aktion="liste">Zu Liste hinzufügen</button>' +
         (liste ? '<button type="button" class="knopf" data-k-aktion="entfernen">Aus „' + esc(liste) + '“ entfernen</button>' : "") +
+        '<button type="button" class="knopf knopf--gefahr" data-k-aktion="loeschen">Löschen</button>' +
         '<button type="button" class="li-link" data-k-aktion="aufheben">Auswahl aufheben</button></div>' +
       '<div data-k-panel>' + panel() + "</div>" +
       (Z.meldung ? '<p class="k-meldung">' + esc(Z.meldung) + "</p>" : "") +
@@ -284,6 +302,53 @@
   }
 
   /* ---------- Detail ---------- */
+  /* ---------- Firma ---------- */
+  function firmaLaden(id) {
+    Z.detail = null;
+    return api("firma", { company_id: id }).then(function (d) {
+      if (!aktiv) return;
+      if (!d) { wurzel.innerHTML = '<div class="karte leer">Firma nicht gefunden. <a href="#kontakte">Zur Liste</a></div>'; return; }
+      Z.firma = d; firmaZeichnen();
+    }).catch(fehler);
+  }
+  function firmaZeichnen() {
+    var d = Z.firma, f = d.firma;
+    var gruppen = ["Sonstige"].concat((d.gruppen || []).slice().sort());
+    wurzel.innerHTML =
+      '<p class="zurueck"><a href="#kontakte" data-k-zu-firmen>← Alle Firmen</a></p>' +
+      '<div class="kopf"><div><h1>' + esc(f.name) + '</h1><p class="leise">' + esc([f.gruppe || "Sonstige", f.domain, f.ort].filter(Boolean).join(" · ")) + "</p></div>" +
+        '<div class="knoepfe">' + (d.follower || []).map(function (x) { return '<span class="pille pille--gut">Follower ' + esc(FOLLOWER_NAME[x] || x) + "</span>"; }).join(" ") + "</div></div>" +
+      '<div class="detail-raster">' +
+        '<div class="detail-haupt">' +
+          '<section class="karte panel"><div class="panel-kopf"><h2>Kontakte</h2><span class="leise">' + zahlText(d.kontakte.length, "Person", "Personen") + "</span></div>" +
+            (d.kontakte.length ? '<table class="tabelle tabelle--klick"><tbody>' + d.kontakte.map(function (k) {
+                return '<tr data-kontakt="' + k.contact_id + '" tabindex="0"><td><b>' + esc(name(k)) + "</b>" + (k.email ? '<small class="k-unter">' + esc(k.email) + "</small>" : "") + "</td>" +
+                  '<td class="k-position">' + esc(k.position || "–") + "</td><td>" + pille(k.lifecycle_stage) + "</td></tr>";
+              }).join("") + "</tbody></table>"
+              : '<p class="panel-leer">Es gibt keinen direkten Kontakt bei dieser Firma.</p>') + "</section>" +
+          '<section class="karte panel"><div class="panel-kopf"><h2>Verlauf</h2><span class="leise">Firma und ihre Kontakte · neueste zuerst</span></div>' + timeline(d.timeline) + "</section>" +
+        "</div>" +
+        '<div class="detail-seite">' +
+          signale(d.timeline, null) +
+          (d.konten.length ? '<section class="karte panel"><div class="panel-kopf"><h2>Konten</h2></div><ul class="k-konten">' + d.konten.map(function (k) {
+              return '<li><span class="pille">' + esc(k.kanal === "instagram" ? "Instagram" : k.kanal) + '</span> <a href="' + esc(k.url) + '" target="_blank" rel="noopener">' + esc(k.name) + "</a>" +
+                (k.anzeigename ? ' <span class="leise">' + esc(k.anzeigename) + "</span>" : "") + "</li>";
+            }).join("") + "</ul></section>" : "") +
+          '<section class="karte panel"><div class="panel-kopf"><h2>Angaben</h2></div><form class="stammdaten" data-firma-form>' +
+            '<label class="feld">Name<input name="name" value="' + esc(f.name) + '" required></label>' +
+            '<label class="feld">Gruppe<select name="gruppe">' + gruppen.map(function (g) {
+              return '<option value="' + esc(g) + '"' + ((f.gruppe || "Sonstige") === g ? " selected" : "") + ">" + esc(g) + "</option>"; }).join("") + "</select></label>" +
+            '<label class="feld">Website<input name="domain" value="' + esc(f.domain) + '" placeholder="beispiel.de"></label>' +
+            '<label class="feld">Telefon<input name="telefon" value="' + esc(f.telefon) + '"></label>' +
+            '<label class="feld">Ort<input name="ort" value="' + esc(f.ort) + '"></label>' +
+            '<label class="feld">Notizen<textarea name="notizen" rows="4">' + esc(f.notizen) + "</textarea></label>" +
+            '<p class="fehler" data-firma-meldung></p>' +
+            '<div class="knoepfe"><button type="submit" class="knopf knopf--primaer">Speichern</button></div></form></section>' +
+          '<div class="gefahrzone"><button type="button" class="knopf knopf--gefahr" data-firma-loeschen>Firma löschen</button>' +
+            '<small class="leise">' + (d.kontakte.length ? "Die " + zahlText(d.kontakte.length, "Person bleibt", "Personen bleiben") + " als Kontakt erhalten, nur ohne Firma." : "Entfernt die Firma mit ihren Signalen.") + "</small></div>" +
+        "</div></div>";
+  }
+
   function detailLaden(id) {
     return Promise.all([api("kontakt", { contact_id: id }), api("listen", {})]).then(function (x) {
       var d = x[0]; Z.listen = x[1] || [];
@@ -346,7 +411,7 @@
       (Z.tagMenue ? '<div class="k-tag-menue" role="menu">' + (frei.length ? frei.map(function (l) {
           return '<button type="button" role="menuitem" data-k-tag-dazu="' + esc(l.liste) + '">' + esc(tagName(l.liste)) + '<small>' + l.kontakte + "</small></button>";
         }).join("") : '<p class="leise">Alle Tags sind schon gesetzt.</p>') +
-        '<a class="k-tag-verwalten" href="#kontakte" data-k-tags-verwalten>Tags verwalten</a></div>' : "") + "</span>";
+        '<a class="k-tag-verwalten" href="#listen">Listen verwalten</a></div>' : "") + "</span>";
   }
   function tagsNeu() { var el = wurzel.querySelector("[data-k-tags]"); if (el) el.innerHTML = tagsHtml(); }
 
@@ -382,7 +447,7 @@
     if (igL.length) zeile("daumen", "Instagram-Likes", igL.length, zuletzt(igL));
     if (igK.length) zeile("sprech", "Instagram-Kommentare", igK.length, zuletzt(igK));
     if (folgt.length) zeile("folgen", "Folgt der Firmenseite", "seit", new Date(folgt[0].zeit).toLocaleDateString("de-DE", { month: "short", year: "numeric" }));
-    var stand = k.newsletter_erlaubt ? '<span class="pille pille--gut">Newsletter erlaubt</span>' : '<span class="pille">kein Newsletter</span>';
+    var stand = !k ? "" : k.newsletter_erlaubt ? '<span class="pille pille--gut">Newsletter erlaubt</span>' : '<span class="pille">kein Newsletter</span>';
     return '<section class="karte panel"><div class="panel-kopf"><h2>Signale</h2>' + stand + "</div>" +
       (z.length ? '<ul class="k-signale">' + z.join("") + "</ul>" : '<p class="panel-leer">Noch keine Signale.</p>') + "</section>";
   }
@@ -621,6 +686,17 @@
       }
       return;
     }
+    if (Z.firma) {
+      if (e.target.closest("[data-k-zu-firmen]")) { e.preventDefault(); Z.ansicht = "firmen"; merken(); return C.oeffne("kontakte"); }
+      if ((t = e.target.closest("tr[data-kontakt]"))) return oeffneKontakt(t);
+      if (e.target.closest("[data-firma-loeschen]")) {
+        var fn = Z.firma.firma.name, kn = Z.firma.kontakte.length;
+        if (!confirm("Firma „" + fn + "“ löschen?" + (kn ? " Die " + kn + " zugehörigen Kontakte bleiben erhalten." : ""))) return;
+        return api("firma_loeschen", { company_id: Z.firma.firma.company_id }).then(function () { Z.ansicht = "firmen"; merken(); C.oeffne("kontakte"); }).catch(fehler);
+      }
+      return;
+    }
+    if ((t = e.target.closest("[data-k-gruppe]"))) { var gg = t.getAttribute("data-k-gruppe"); Z.gruppenOffen[gg] = !Z.gruppenOffen[gg]; return ergebnisNeu(); }
     if ((t = e.target.closest("[data-k-ansicht]"))) { Z.ansicht = t.getAttribute("data-k-ansicht"); Z.auswahl = {}; merken(); return listeLaden(); }
     if (e.target.closest("[data-k-fknopf]")) { Z.fMenue = !Z.fMenue; Z.fSeite = null; return fMenueNeu(); }
     if ((t = e.target.closest("[data-k-fseite]"))) {
@@ -635,9 +711,7 @@
       return filterGeaendert(true);
     }
     if (e.target.closest("[data-k-filter-leeren]")) { Z.f = {}; Z.firmaName = ""; if (Z.fMenue) fMenueNeu(); return filterGeaendert(true); }
-    if ((t = e.target.closest("tr[data-k-firma]"))) {
-      Z.ansicht = "kontakte"; Z.f = { firma_id: t.getAttribute("data-k-firma") }; Z.firmaName = t.getAttribute("data-name"); merken(); return listeLaden();
-    }
+    if ((t = e.target.closest("tr[data-k-firma]"))) return C.oeffne("kontakte", "firma:" + t.getAttribute("data-k-firma"));
     if ((t = e.target.closest("[data-k-uebernehmen]"))) {
       t.disabled = true; t.textContent = "…";
       var mail = t.getAttribute("data-k-uebernehmen");
@@ -666,6 +740,13 @@
     if ((t = e.target.closest("[data-k-aktion]"))) {
       var a = t.getAttribute("data-k-aktion");
       if (a === "aufheben") { Z.auswahl = {}; return listeZeichnen(); }
+      if (a === "loeschen") {
+        var weg = ausgewaehlt();
+        if (!weg.length || !confirm(zahlText(weg.length, "Kontakt", "Kontakte") + " endgültig löschen? Besuche, Termine, Mails und Calls dieser Personen werden mit entfernt.")) return;
+        return api("kontakte_loeschen", { contact_ids: weg, bestaetigt: true }).then(function (n) {
+          Z.auswahl = {}; Z.meldung = zahlText(n, "Kontakt", "Kontakte") + " gelöscht."; return listeLaden();
+        }).catch(fehler);
+      }
       if (a === "liste") return panelOeffnen(ausgewaehlt());
       if (a === "panel-zu") { Z.panel = null; return listeZeichnen(); }
       if (a === "entfernen") {
@@ -683,7 +764,7 @@
     if (e.target.closest("[data-k-liste-loeschen]")) {
       var l = aktuelleListe();
       if (!confirm("Liste „" + l + "“ auflösen? Die Markierung wird bei allen Kontakten entfernt, die Kontakte selbst bleiben erhalten.")) return;
-      return api("liste_loeschen", { liste: l }).then(function (n) { Z.meldung = "Liste „" + l + "“ aufgelöst (" + n + " Kontakte)."; Z.filter = ""; history.replaceState(null, "", "#kontakte"); return listeLaden(); }).catch(fehler);
+      return api("liste_loeschen", { liste: l }).then(function (n) { Z.meldung = ""; return C.oeffne("listen"); }).catch(fehler);
     }
     if (e.target.closest("[data-k-alle]")) { e.preventDefault(); Z.filter = ""; Z.meldung = ""; history.pushState(null, "", "#kontakte"); return listeLaden(); }
     var tr = e.target.closest("tr[data-kontakt]"); if (tr) return oeffneKontakt(tr);
@@ -698,6 +779,14 @@
     }
   });
   wurzel.addEventListener("submit", function (e) {
+    if (aktiv && Z.firma && e.target.hasAttribute("data-firma-form")) {
+      e.preventDefault();
+      var ff = e.target, m = wurzel.querySelector("[data-firma-meldung]"), daten = { company_id: Z.firma.firma.company_id };
+      ["name", "gruppe", "domain", "telefon", "ort", "notizen"].forEach(function (n) { daten[n] = ff.elements[n].value; });
+      return api("firma_speichern", { firma: daten }).then(function () {
+        return firmaLaden(daten.company_id).then(function () { var m2 = wurzel.querySelector("[data-firma-meldung]"); if (m2) { m2.textContent = "Gespeichert."; m2.classList.add("ok"); } });
+      }).catch(function (err) { if (m) { m.textContent = err.message; m.classList.remove("ok"); } });
+    }
     if (!aktiv || !e.target.hasAttribute("data-stammdaten")) return;
     e.preventDefault();
     var f = e.target, m = wurzel.querySelector("[data-k-meldung]"), knopf = f.querySelector('button[type="submit"]');

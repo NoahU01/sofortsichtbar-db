@@ -606,3 +606,27 @@ span.k-chip-text { cursor: default; }
   .k-filterort { flex: 1 1 100%; }
   .k-fmenue, .k-fseite { position: static; width: 100%; margin-top: .45rem; max-height: none; }
 }
+
+/* ---------- Firmen: Gruppen und Detail ---------- */
+.k-gruppen { padding: 0; overflow: hidden; }
+.k-gruppe + .k-gruppe { border-top: 1px solid var(--line-soft); }
+.k-gruppe-kopf { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 7rem 8rem 9rem 8rem;
+  gap: .4rem 1rem; align-items: center; padding: .9rem 1.1rem; font-size: .88rem; }
+.k-gruppe-kopf:hover { background: var(--panel-2); }
+.k-gruppe-kopf:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.k-gruppe-name { font-weight: 600; display: flex; align-items: center; gap: .6rem; }
+.k-gruppe-name::before { content: ""; width: 6px; height: 6px; border-right: 1.5px solid var(--ink-3); border-bottom: 1.5px solid var(--ink-3); transform: rotate(-45deg); transition: transform .15s; }
+.k-gruppe--offen .k-gruppe-name::before { transform: rotate(45deg); }
+.k-gruppe-zahl { font-size: .8rem; color: var(--ink-2); }
+.k-gruppe-zahl b { font-variant-numeric: tabular-nums; color: var(--ink); }
+.k-gruppe .k-firmen { margin: 0 1.1rem .8rem 2.3rem; width: calc(100% - 3.4rem); }
+.k-konten { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; font-size: .86rem; }
+.detail-haupt { display: grid; gap: 1rem; align-content: start; min-width: 0; }
+.ls-neu { display: flex; flex-wrap: wrap; gap: .6rem; align-items: end; }
+.ls-neu .feld { flex: 1 1 260px; }
+.ls-aktion { text-align: right; }
+@media (max-width: 760px) {
+  .k-gruppe-kopf { grid-template-columns: minmax(0, 1fr) auto; }
+  .k-gruppe-kopf .k-gruppe-zahl:nth-of-type(n+3) { display: none; }
+  .k-gruppe .k-firmen { margin: 0 .6rem .6rem; width: calc(100% - 1.2rem); }
+}
