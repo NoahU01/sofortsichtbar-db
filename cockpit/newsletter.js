@@ -95,7 +95,7 @@
     if (!Z.test) Z.test = konto();
     wurzel.innerHTML =
       '<p class="zurueck"><a href="#newsletter">← Alle Newsletter</a></p>' +
-      '<div class="kopf"><div><h1>' + esc(n.titel || "Neuer Newsletter") + '</h1><p class="leise">Entwurf' + (n.updated_at ? " · gespeichert " + wann(n.updated_at) : " · noch nicht gespeichert") + "</p></div>" +
+      '<div class="kopf"><div><h1>' + esc(n.titel || "Neuer Newsletter") + '</h1><p class="leise kopf-info">Entwurf' + (n.updated_at ? " · gespeichert " + wann(n.updated_at) : " · noch nicht gespeichert") + "</p></div>" +
         '<div class="statusleiste nl-status">' + statusZeile(Z.daten && Z.daten.status) + "</div></div>" +
       '<div class="nl-raster">' +
         '<div class="nl-links">' +
@@ -247,7 +247,7 @@
     var laeuft = n.status === "wird_gesendet";
     wurzel.innerHTML =
       '<p class="zurueck"><a href="#newsletter">← Alle Newsletter</a></p>' +
-      '<div class="kopf"><div><h1>' + esc(n.titel) + '</h1><p class="leise">' + esc(STATUS[n.status]) + " · Betreff „" + esc(n.betreff) + "“ · freigegeben " + wann(n.freigegeben_am) +
+      '<div class="kopf"><div><h1>' + esc(n.titel) + '</h1><p class="leise kopf-info">' + esc(STATUS[n.status]) + " · Betreff „" + esc(n.betreff) + "“ · freigegeben " + wann(n.freigegeben_am) +
         (n.freigegeben_von ? " von " + esc(n.freigegeben_von) : "") + (n.gesendet_am ? " · fertig " + wann(n.gesendet_am) : "") + "</p></div>" +
         (laeuft ? '<button type="button" class="knopf knopf--gefahr" data-aktion="abbrechen">Versand stoppen</button>' : "") + "</div>" +
       (laeuft ? '<div class="statusleiste"><span class="status status--ok"><i></i>' + zahl(z.wartet) + " von " + zahl(z.empfaenger) + " noch in der Warteschlange · aktualisiert sich alle 10 Sekunden</span></div>" : "") +

@@ -5,9 +5,9 @@
   --bg:#EEF2F6; --panel:#FFFFFF; --panel-2:#F8FAFC; --sunk:#EEF2F6;
   --line:#E3E8EF; --line-soft:#EEF2F6;
   --ink:#121926; --ink-2:#4B5565; --ink-3:#697586;
-  --accent:#673AB7; --accent-soft:#EDE7F6;
+  --accent:#077A92; --accent-soft:#E3F4F8; --accent-hell:#0B9FBD;
   --good:#00A152; --good-ink:#00753A; --warn:#B76E00; --bad:#F44336; --bad-ink:#C62828;
-  --brand-1:#673AB7; --brand-2:#a167e4;
+  --brand-1:#0B9FBD; --brand-2:#077A92;
   --nav:#111936; --nav-ink:#8492C4; --nav-ink-hell:#D7DCEC; --nav-aktiv:#29314F; --nav-linie:#212946;
   --treffer:#FFF3B0;
   --r:8px;
@@ -18,7 +18,7 @@
     --bg:#1A223F; --panel:#111936; --panel-2:#212946; --sunk:#212946;
     --line:#29314F; --line-soft:#212946;
     --ink:#D7DCEC; --ink-2:#BDC8F0; --ink-3:#8492C4;
-    --accent:#B39DDB; --accent-soft:#29314F;
+    --accent:#4CC3DC; --accent-soft:#15334A; --accent-hell:#4CC3DC;
     --good-ink:#00C853; --bad-ink:#EF9A9A;
     --treffer:#5A4A00;
     --shadow:0 2px 14px 0 rgba(0,0,0,.35);
@@ -164,7 +164,7 @@ mark { background: var(--treffer); color: inherit; border-radius: 2px; padding: 
 }
 
 /* ---------- Auswertung (Website) ---------- */
-:root { --balken:#7E57C2; --spur:#EEF2F6; }
+:root { --balken:#0B9FBD; --spur:#EEF2F6; }
 @media (prefers-color-scheme: dark) { :root { --balken:#9575CD; --spur:#212946; } }
 .filterleiste { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem 1.1rem; padding: .7rem 1rem; margin-bottom: 1rem; }
 .schalter { display: inline-flex; align-items: center; gap: .45rem; font-size: .82rem; color: var(--ink-2); cursor: pointer; margin-left: auto; }
@@ -630,3 +630,6 @@ span.k-chip-text { cursor: default; }
   .k-gruppe-kopf .k-gruppe-zahl:nth-of-type(n+3) { display: none; }
   .k-gruppe .k-firmen { margin: 0 .6rem .6rem; width: calc(100% - 1.2rem); }
 }
+
+/* Seiten-Untertitel ausgeblendet (Noah, 19.11.); Detailseiten behalten ihre Info-Zeile */
+.kopf h1 + p.leise:not(.kopf-info) { display: none; }

@@ -197,7 +197,7 @@
     var aus = ausgewaehlt(), alle = Z.liste.length && aus.length === Z.liste.length;
     wurzel.innerHTML =
       (liste ? '<p class="zurueck"><a href="#listen">← Alle Listen</a></p>' : "") +
-      '<div class="kopf"><div><h1>' + (liste ? "Liste „" + esc(liste) + "“" : "Kontakte") + '</h1><p class="leise">' +
+      '<div class="kopf"><div><h1>' + (liste ? "Liste „" + esc(liste) + "“" : "Kontakte") + '</h1><p class="leise' + (liste ? " kopf-info" : "") + '">' +
         (liste ? zahlText(info ? info.kontakte : Z.liste.length, "Kontakt", "Kontakte") + " · " + zahlText(info ? info.erlaubt : 0, "darf", "dürfen") + " den Newsletter bekommen"
                : "Alle Personen aus Terminbuchungen, Postfach, Calls, LinkedIn, Instagram und Listen") + "</p></div>" +
         (liste ? '<button type="button" class="knopf knopf--gefahr" data-k-liste-loeschen>Liste auflösen</button>' : "") + "</div>" +
@@ -316,7 +316,7 @@
     var gruppen = ["Sonstige"].concat((d.gruppen || []).slice().sort());
     wurzel.innerHTML =
       '<p class="zurueck"><a href="#kontakte" data-k-zu-firmen>← Alle Firmen</a></p>' +
-      '<div class="kopf"><div><h1>' + esc(f.name) + '</h1><p class="leise">' + esc([f.gruppe || "Sonstige", f.domain, f.ort].filter(Boolean).join(" · ")) + "</p></div>" +
+      '<div class="kopf"><div><h1>' + esc(f.name) + '</h1><p class="leise kopf-info">' + esc([f.gruppe || "Sonstige", f.domain, f.ort].filter(Boolean).join(" · ")) + "</p></div>" +
         '<div class="knoepfe">' + (d.follower || []).map(function (x) { return '<span class="pille pille--gut">Follower ' + esc(FOLLOWER_NAME[x] || x) + "</span>"; }).join(" ") + "</div></div>" +
       '<div class="detail-raster">' +
         '<div class="detail-haupt">' +
@@ -364,7 +364,7 @@
     var opt = function (map, wert) { return Object.keys(map).map(function (v) { return '<option value="' + v + '"' + ((wert || "") === v ? " selected" : "") + ">" + esc(map[v]) + "</option>"; }).join(""); };
     wurzel.innerHTML =
       '<p class="zurueck"><a href="#kontakte" data-zurueck>← Alle Kontakte</a></p>' +
-      '<div class="kopf"><div><h1>' + esc(name(k)) + "</h1><p class=\"leise\">" + esc([k.position, k.firma, k.email].filter(Boolean).join(" · ")) + " · seit " + datum(k.created_at) + "</p></div>" + pille(k.lifecycle_stage) + "</div>" +
+      '<div class="kopf"><div><h1>' + esc(name(k)) + "</h1><p class=\"leise kopf-info\">" + esc([k.position, k.firma, k.email].filter(Boolean).join(" · ")) + " · seit " + datum(k.created_at) + "</p></div>" + pille(k.lifecycle_stage) + "</div>" +
       '<div class="detail-raster">' +
         '<section class="karte panel"><div class="panel-kopf"><h2>Verlauf</h2><span class="leise">neueste zuerst</span></div>' + timeline(d.timeline) + "</section>" +
         '<div class="detail-seite">' +

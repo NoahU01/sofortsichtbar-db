@@ -328,6 +328,16 @@ function aktion(name: string, b: Record<string, unknown>, email: string): [strin
       if (was === "zuordnen" && !kontakt) throw fehler("contact_id fehlt");
       return ["dashboard_instagram_person", { p_person_id: id, p_aktion: was, p_contact_id: kontakt }];
     }
+    case "linkedin_verwerfen": {
+      const id = uuidOderNull(b.beitrag_id);
+      if (!id) throw fehler("beitrag_id fehlt");
+      return ["dashboard_linkedin_verwerfen", { p_beitrag_id: id }];
+    }
+    case "instagram_verwerfen": {
+      const post = textOderLeer(b.post_id, 100).trim();
+      if (!post) throw fehler("Beitrag fehlt");
+      return ["dashboard_instagram_verwerfen", { p_post_id: post }];
+    }
     case "ausschluss":
       return ["dashboard_ausschluss", {}];
     case "ausschluss_setzen": {

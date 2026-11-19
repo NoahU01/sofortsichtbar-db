@@ -37,17 +37,17 @@
     return api("instagram", {}).then(function (d) {
       Z.daten = d;
       var z = document.querySelector('[data-zahl="instagram"]');
-      if (z) z.textContent = B().filter(function (b) { return b.beobachtet && b.fehlen > 0; }).length || "";
+      if (z) z.textContent = B().filter(function (b) { return b.beobachtet && b.fehlen > 0 && !b.verworfen; }).length || "";
       if (aktiv) zeichnen();
     }).catch(function (e) { if (aktiv) wurzel.innerHTML = '<div class="karte leer">Fehler: ' + esc(e.message) + "</div>"; });
   }
 
   function zeichnen() {
     if (!Z.beitrag || !B().some(function (b) { return b.post_id === Z.beitrag; })) {
-      var vor = B().filter(function (b) { return b.beobachtet && b.fehlen > 0; })[0] || B()[0];
+      var vor = B().filter(function (b) { return b.beobachtet && b.fehlen > 0 && !b.verworfen; })[0] || B()[0];
       Z.beitrag = vor ? vor.post_id : null;
     }
-    var offen = B().filter(function (b) { return b.beobachtet && b.fehlen > 0; });
+    var offen = B().filter(function (b) { return b.beobachtet && b.fehlen > 0 && !b.verworfen; });
     wurzel.innerHTML =
       '<div class="kopf"><div><h1>Instagram</h1><p class="leise">Beiträge und Zahlen aus Buffer · ' + zahl(Z.daten.follower) + ' Follower erfasst · Likes ab dem 18.11. per Einfügen</p></div></div>' +
       (offen.length ? '<div class="statusleiste"><span class="status status--aus"><i></i>Bei ' + offen.length + (offen.length === 1 ? " Beitrag fehlen" : " Beiträgen fehlen") + " Likes</span></div>" : "") +
@@ -65,7 +65,7 @@
     return '<div class="panel-kopf"><h2>Likes einfügen</h2><span class="leise">In Instagram auf „Gefällt mir“ klicken → Liste markieren → kopieren → hier einfügen</span></div>' +
       '<label class="feld">Beitrag<select data-ig-beitrag>' + B().map(function (x) {
         return '<option value="' + esc(x.post_id) + '"' + (x.post_id === Z.beitrag ? " selected" : "") + ">" + esc(tag(x.veroeffentlicht) + " · " + x.titel) +
-          (x.fehlen ? " – " + x.fehlen + " fehlen" : "") + "</option>";
+          (x.fehlen && !x.verworfen ? " – " + x.fehlen + " fehlen" : "") + "</option>";
       }).join("") + "</select></label>" +
       (b && b.url ? '<p class="leise nl-mini"><a href="' + esc(b.url) + '" target="_blank" rel="noopener">Beitrag auf Instagram öffnen</a> · laut Buffer ' + zahl(b.likes) + " Likes, erfasst " + zahl(b.erfasst) + "</p>" : "") +
       '<label class="feld">Like-Liste<textarea data-ig-text rows="6" placeholder="benutzername&#10;Anzeigename&#10;Folgen&#10;…">' + esc(Z.text) + "</textarea></label>" +
@@ -93,7 +93,8 @@
         '<dl class="li-b-zahlen"><div><dt>Impressionen</dt><dd>' + zahl(b.impressionen) + "</dd></div><div><dt>Likes</dt><dd>" + zahl(b.likes) + "</dd></div>" +
           "<div><dt>Kommentare</dt><dd>" + zahl(b.kommentare) + (b.kommentare_erfasst ? '<span class="leise"> · ' + zahl(b.kommentare_erfasst) + " erfasst</span>" : "") + "</dd></div>" +
           '<div class="li-b-erfasst"><dt>erfasst</dt><dd>' + zahl(b.erfasst) + (soll ? '<span class="leise"> / ' + zahl(soll) + '</span><span class="li-balken" aria-hidden="true"><i style="width:' + anteil + '%"></i></span>' : "") + "</dd></div></dl>" +
-        '<div class="li-b-aktionen">' + (b.fehlen > 0 ? '<span class="pille pille--verloren">' + b.fehlen + (b.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" : "") +
+        '<div class="li-b-aktionen">' + (b.fehlen > 0 && !b.verworfen ? '<span class="pille pille--verloren">' + b.fehlen + (b.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" +
+            '<button type="button" class="li-link" data-ig-verwerfen="' + esc(b.post_id) + '" title="Vorschlag ausblenden – kommt wieder, sobald Buffer neue Likes meldet">verwerfen</button>' : "") +
           '<button type="button" class="knopf knopf--klein" data-ig-einfuegen="' + esc(b.post_id) + '">' + (b.erfasst ? "Nachtragen" : "Einfügen") + "</button></div></li>";
     }).join("") + "</ul>" + um;
   }
@@ -153,6 +154,10 @@
     var t;
     if ((t = e.target.closest("[data-ig-filter]"))) { Z.filter = t.getAttribute("data-ig-filter"); return zeichnen(); }
     if (e.target.closest("[data-ig-alle]")) { Z.alle = !Z.alle; return zeichnen(); }
+    if ((t = e.target.closest("[data-ig-verwerfen]"))) {
+      t.disabled = true;
+      return api("instagram_verwerfen", { post_id: t.getAttribute("data-ig-verwerfen") }).then(laden).catch(function (err) { t.disabled = false; t.textContent = "Fehler: " + err.message; });
+    }
     if ((t = e.target.closest("[data-ig-einfuegen]"))) {
       Z.beitrag = t.getAttribute("data-ig-einfuegen"); Z.meldung = ""; zeichnen();
       var ta = wurzel.querySelector("[data-ig-text]"); if (ta) { ta.scrollIntoView({ block: "center" }); ta.focus(); }

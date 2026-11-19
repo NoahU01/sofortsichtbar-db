@@ -119,7 +119,7 @@
   }
 
   // Beiträge, bei denen laut Buffer Reaktionen fehlen (nur beobachtete: schon erfasst oder jünger als 30 Tage)
-  function nachtragen(l) { return l.filter(function (b) { return b.beobachtet && b.fehlen > 0; }); }
+  function nachtragen(l) { return l.filter(function (b) { return b.beobachtet && b.fehlen > 0 && !b.verworfen; }); }
   // Ansicht Alle / Firmenseite / Daniel
   function B() { return Z.daten.beitraege.filter(function (b) { return Z.sicht === "alle" || b.kanal === Z.sicht; }); }
   function P() {
@@ -152,7 +152,8 @@
             " · " + zahl(b.laut_buffer) + " Reaktionen laut Buffer, " + zahl(b.erfasst + b.weitere) + " erfasst</small></div>" +
             '<div class="knoepfe"><span class="pille pille--verloren">' + b.fehlen + (b.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" +
             (b.url ? '<a class="knopf" href="' + esc(b.url) + '" target="_blank" rel="noopener">In LinkedIn öffnen</a>' : "") +
-            '<button type="button" class="knopf knopf--primaer" data-li-nachtragen="' + b.beitrag_id + '">Liste einfügen</button></div></li>';
+            '<button type="button" class="knopf knopf--primaer" data-li-nachtragen="' + b.beitrag_id + '">Liste einfügen</button>' +
+            '<button type="button" class="li-link" data-li-verwerfen="' + b.beitrag_id + '" title="Vorschlag ausblenden – kommt wieder, sobald Buffer neue Reaktionen meldet">verwerfen</button></div></li>';
         }).join("") + "</ul></section>" : "") +
       '<section class="karte panel" data-li-form>' + formular() + "</section>" +
       '<section class="karte panel"><div class="panel-kopf"><h2>Personen</h2><div class="seg" role="group" aria-label="Filter">' +
@@ -294,7 +295,7 @@
             "<div><dt>Kommentare</dt><dd>" + zahl(x.kommentare_laut_buffer) + (x.kommentare_erfasst ? '<span class="leise"> · ' + zahl(x.kommentare_erfasst) + " erfasst</span>" : "") + "</dd></div>" +
             '<div class="li-b-erfasst"><dt>erfasst</dt><dd>' + zahl(erfasst) + (soll ? '<span class="leise"> / ' + zahl(soll) + "</span>" : "") +
               (soll ? '<span class="li-balken" aria-hidden="true"><i style="width:' + anteil + '%"></i></span>' : "") + "</dd></div></dl>" +
-          '<div class="li-b-aktionen">' + (x.beobachtet && x.fehlen > 0 ? '<span class="pille pille--verloren">' + x.fehlen + (x.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" : "") +
+          '<div class="li-b-aktionen">' + (x.beobachtet && x.fehlen > 0 && !x.verworfen ? '<span class="pille pille--verloren">' + x.fehlen + (x.fehlen === 1 ? " fehlt" : " fehlen") + "</span>" : "") +
             '<button type="button" class="knopf knopf--klein" data-li-nachtragen="' + x.beitrag_id + '">' + (x.erfasst ? "Nachtragen" : "Einfügen") + "</button>" +
             (x.kanal === "daniel" ? '<button type="button" class="li-link" data-li-zuordnen="' + x.beitrag_id + '" data-z="empiria" title="gehört zu empiria – ausblenden">ausblenden</button>' : "") +
           "</div></li>";
@@ -403,6 +404,10 @@
       if (Z.beitrag === bid) Z.beitrag = null;
       return api("linkedin_zuordnen", { beitrag_id: bid, zugehoerigkeit: t.getAttribute("data-z") }).then(laden)
         .catch(function (err) { t.disabled = false; t.textContent = "Fehler: " + err.message; });
+    }
+    if ((t = e.target.closest("[data-li-verwerfen]"))) {
+      t.disabled = true;
+      return api("linkedin_verwerfen", { beitrag_id: t.getAttribute("data-li-verwerfen") }).then(laden).catch(function (err) { t.disabled = false; t.textContent = "Fehler: " + err.message; });
     }
     if ((t = e.target.closest("[data-li-nachtragen]"))) {
       Z.beitrag = t.getAttribute("data-li-nachtragen"); Z.meldung = "";
